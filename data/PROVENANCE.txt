@@ -1,0 +1,29 @@
+Data used by the SPRINT paper draft. Values are transcribed, not re-measured.
+SPRINT is developed in the GIPM repository; source paths below refer to it.
+
+pushbox_strict.csv, pushbox_strict_violations.csv
+  Source: results summary screenshot 37.PNG (GIPM repository root), November 2026.
+  GIPM "current version" with automatic CPU/GPU selection; BRISK 1.6.5 (CPU) and
+  MOSEK 11.0.10 (CPU) are earlier measurements on the same machine (altman),
+  both with internal tolerance 1e-6. Times are cold-start end-to-end medians from
+  original-problem input to solver output; independent checking is excluded.
+  GIPM and MOSEK include back-substitution to original coordinates and writing;
+  BRISK includes NPZ->MAT conversion and native solution output.
+  "pass" = runs whose saved solution passes the strict 1e-6 original-problem check.
+  The raw per-run records (GIPM rerun, BRISK and MOSEK records) are not in this
+  repository.
+
+pendulum3d_n20.csv
+  Source: results summary screenshot 38.PNG. 3D pendulum, N=20, 180 degrees, on altman.
+  MOSEK 11.0.10 with 8 CPU threads vs GIPM on one H100; both read the same reduced
+  SDP; solutions are mapped back to the original SDP and checked at 1e-6.
+
+a100_phase_n100.csv, a100_optimization_rounds.csv
+  Source: GIPM benchmarks/spot/README.md and
+  benchmarks/spot/trajectory-factor-setup-optimization-20261016.md (commit 3bb3189).
+  PushT N=100 on Quest A100-SXM4-80GB. Phase times are single synchronized
+  diagnostics; nested rows do not sum to their parent. Optimization rounds are
+  separate same-allocation paired comparisons; gains must not be multiplied.
+
+All other CSVs are copied unchanged from data/ of the trajectory-sos-note repository
+(October 7, 2026 note); see its data/PROVENANCE.txt.

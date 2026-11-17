@@ -1,0 +1,104 @@
+\section{Introduction}\label{sec:intro}
+
+Polynomial optimization offers a principled route to globally informed robot
+trajectory optimization. Once dynamics, contact complementarity and kinematic
+constraints are written, or lifted, as polynomial equalities and inequalities,
+the moment--sum-of-squares (SOS) hierarchy~\cite{lasserre2001global,parrilo2003semidefinite}
+produces semidefinite programs (SDPs) whose optimal values are certified lower
+bounds on the trajectory cost. Their solutions often lead to near-optimal
+trajectories by extraction or rounding. Relaxations that exploit correlative and
+term sparsity~\cite{waki2006sums,lasserre2006convergent,wang2021tssos,wang2022cstssos}
+keep long horizons representable. SPOT~\cite{kang2025spot} has demonstrated this
+for contact-rich manipulation, and related relaxations are tight on several
+contact-rich problems~\cite{graesdal2024tight}.
+
+Being able to write down such a relaxation does not make it easy to solve.
+A sparse trajectory relaxation contains tens of thousands of small
+positive-semidefinite (PSD) blocks and hundreds of thousands of equality
+constraints; one of our PushT instances with horizon $N=100$ has $259{,}499$
+equality rows and $63{,}885$ PSD blocks of order at most $13$. Interior-point
+methods (IPMs) remain the method of choice when high accuracy is required, and
+most of their time goes into forming and factoring the Schur-complement (Newton)
+matrix on the equality constraints. Small PSD blocks do not by themselves make
+this matrix cheap to factor. Coefficient-matching rows couple several blocks,
+monomials in globally shared variables can span the whole horizon, and an
+ordering chosen without knowledge of the model can create large dense fronts.
+General-purpose sparse direct solvers on CPUs (as in MOSEK~\cite{mosek}) or GPUs
+(as in cuDSS~\cite{cudss}) recover part of this structure through fill-reducing
+orderings. They do not know which couplings are temporal, and they cannot
+guarantee that a hierarchy remains compatible after the model-specific
+simplifications that make elimination cheap.
+
+This paper connects the polynomial model to the graph that the linear solver
+actually sees, and uses that connection to build an exact, certified,
+GPU-friendly elimination scheme for the IPM Newton system. Our contributions are
+as follows.
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item \textbf{Temporal separators from coefficient matching.} We define the
+  \emph{resource graph} of an SOS relaxation, in which every PSD block or free
+  variable induces a clique on the coefficient rows it touches. This graph
+  contains the sparsity pattern of the Schur matrix and all of its symbolic fill
+  (\cref{lem:envelope}). A temporal cut has a separator of size at most
+  $\binom{s+2r}{2r}$, where $s$ is the number of polynomial variables shared
+  across the cut and $r$ is the relaxation order (\cref{thm:monomial}). Under
+  bounded temporal support, an explicit interval ordering gives a path
+  decomposition of bounded width, and hence linear factorization work in~$N$
+  (\cref{thm:interval}).
+\item \textbf{A certified hierarchy with exact condensation.} We give an
+  adjacent-interface certificate, checkable in time linear in the size of the
+  Schur graph, under which independent elimination of the interior components
+  yields an exact block-tridiagonal system with a global border
+  (\cref{thm:chain}). The certificate validates aggressive separator pruning and
+  temporal coarsening, which are justified algebraically by associativity of
+  Schur complements (\cref{prop:assoc}). A compatible hierarchy always exists
+  under the modeling assumptions (\cref{thm:spaced}).
+\item \textbf{Complexity bounds that depend on the actual fronts.} We bound
+  factorization work, storage and solve cost by accumulated local elimination
+  fronts, component boundary sizes and retained interface widths
+  (\cref{thm:main}). Under uniform local bounds this gives $O(N)$ numerical work
+  and storage (\cref{cor:linear}) and $O(\log N)$ dependency depth
+  (\cref{cor:depth}). We refine the bounds for unequal interfaces and for the
+  supernodal plan that the GPU executes. We also state what the bounds do not
+  cover: symbolic setup, the number of outer IPM iterations, and floating-point
+  accuracy.
+\item \textbf{A GPU interior-point solver.} We present SPRINT, an
+  interior-point solver for SOS relaxations of multistage polynomial
+  optimization, and describe its structured backend. It combines sparse-coordinate Schur assembly, certified symbolic
+  planning, batched native supernodal partial factorization of repeated stage
+  patterns, and a reduced solve by dense Cholesky, cyclic reduction or sparse
+  factorization. Every direction is checked against the full operator, and the
+  backend falls back to a general factorization when a check fails.
+\item \textbf{Experiments at matched and strict accuracy.} On SPOT planning
+  SDPs, the hierarchical backend is $1.19$--$1.22\times$ faster than full-system
+  cuDSS on the same A100 at $N=30$ and $100$, and the reduced solve takes about
+  $1\%$ of Newton time. On PushBox with $N$ up to $80$, SPRINT is
+  $1.5$--$3.2\times$ faster than MOSEK~11 and BRISK~\cite{brisk} for $N\ge20$.
+  For $N\ge5$, it is the only one of the three solvers whose solutions pass a
+  strict $10^{-6}$ check on the original SDP. On a three-dimensional pendulum
+  problem with $N=20$, SPRINT on one H100 reaches the same SOS bound as 8-thread
+  MOSEK $12.3\times$ faster in solver time and $7.7\times$ faster end to end.
+\end{enumerate}
+
+The graph-theoretic and block-elimination identities we use are
+classical~\cite{rose1976algorithmic,george1973nested,vandenberghe2015chordal},
+and linear per-iteration complexity for suitably structured sparse SDPs is known
+for other formulations~\cite{zhang2020clique,zhang2024chordal}. We do not claim
+the first linear-complexity sparse SDP method. Our contribution is the
+specialization of these tools to SOS coefficient incidence, a verifiable
+construction of the elimination hierarchy, a cost analysis tied to the
+operations the solver executes, and an implementation that turns the analysis
+into end-to-end speedups at high accuracy. The analysis uses only the temporal
+locality of the relaxation, so it applies to multistage polynomial optimization
+in general; in this paper we focus on robot trajectory problems, which motivate
+the design and supply all of our test instances.
+
+\paragraph{Organization.}
+\Cref{sec:related} reviews related work. \Cref{sec:setting} fixes the SDP and
+its Newton system. \Cref{sec:structure} derives temporal separators and an
+explicit linear-work ordering, and \cref{sec:hierarchy} develops the certified
+hierarchy. \Cref{sec:complexity} gives the complexity bounds, and
+\cref{sec:algorithm} describes the GPU solver. \Cref{sec:experiments} reports
+the experiments, and \cref{sec:discussion} discusses limitations. The appendices
+treat factor reuse across iterations, the correspondence between the analysis and
+the implementation, and additional measurements.

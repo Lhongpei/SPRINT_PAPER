@@ -1,0 +1,28 @@
+Sparse sum-of-squares (SOS) relaxations give certified lower bounds for robot
+trajectory optimization, including contact-rich manipulation, but interior-point
+methods for the resulting
+semidefinite programs spend most of their time forming and factoring a Newton
+(Schur-complement) system whose dimension grows with the horizon~$N$. We show
+that the temporal locality of the polynomial model reaches this system through
+the incidence between coefficient-matching constraints and semidefinite blocks,
+and we use this to build an exact, certified elimination scheme. A temporal cut
+admits a separator whose size is bounded by the number of monomials of degree at
+most $2r$ in the variables shared across the cut. Under bounded temporal support,
+an explicit interval ordering yields linear factorization work. For the more
+selective hierarchies used in practice, we give a certificate, checkable in
+linear time, under which independent elimination of interior components produces
+an exact block-tridiagonal system with a global border. The resulting work,
+storage and solve bounds depend on accumulated local fronts and retained
+interface widths; under uniform local bounds they give $O(N)$ numerical work and
+storage and $O(\log N)$ dependency depth. We implement the scheme in SPRINT, a GPU
+interior-point solver for SOS relaxations of multistage polynomial optimization
+that combines sparse-coordinate Schur assembly, batched
+supernodal partial factorization of repeated stage patterns, a small reduced
+solve and full-operator residual checks. On contact-rich planning SDPs generated
+by SPOT, the hierarchical backend is $1.19$--$1.22\times$ faster than
+full-system cuDSS on the same A100, and the reduced solve takes about $1\%$ of
+Newton time. On PushBox with horizons up to $80$, SPRINT is $1.5$--$3.2\times$
+faster than MOSEK and BRISK for $N\ge20$, and for $N\ge5$ only its solutions
+pass a strict $10^{-6}$ check on the original SDP. On a three-dimensional
+pendulum problem, SPRINT reaches the same SOS bound as MOSEK $12.3\times$ faster
+in solver time.

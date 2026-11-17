@@ -1,0 +1,198 @@
+\section{Certified hierarchical elimination}\label{sec:hierarchy}
+
+\subsection{Retained interfaces and the adjacent-interface certificate}
+
+Choose disjoint retained sets and let $I$ be their complement:
+\begin{equation}\label{eq:retained}
+R=B\mathbin{\dot\cup}R_1\mathbin{\dot\cup}\cdots\mathbin{\dot\cup}R_K,\qquad I=V\setminus R.
+\end{equation}
+Let $I_1,\ldots,I_J$ be the connected components of $G[I]$, with retained
+boundaries $\partial I_j=N_G(I_j)\cap R$. The groups $R_k$ are indexed
+consecutively in the retained order. Stage indices can have gaps after pruning
+or coarsening, so they cannot replace these compact indices when testing
+adjacency.
+
+\begin{definition}[adjacent-interface certificate]\label{def:certificate}
+The retained partition is \emph{certified} if
+\begin{enumerate}[label=(\roman*),itemsep=1pt]
+\item every edge of $G[R]$ with both endpoints outside $B$ joins vertices in the
+  same group or in two consecutive groups; and
+\item for every interior component, $\partial I_j\setminus B\subseteq R_k\cup R_{k+1}$
+  for some $k$. A component may also touch a single group or none.
+\end{enumerate}
+\end{definition}
+
+Given adjacency lists, the certificate can be checked in $O(m+|\mathcal E|)$
+time: find the components of $G[I]$, scan their incident edges while recording
+the smallest and largest compact group index met, and check the retained-to-retained
+edges in the same scan. No table indexed by components and retained rows is
+needed. With the ordering $I_1,\ldots,I_J,R$, the operator has the block-arrow
+form
+\begin{equation}\label{eq:arrow}
+H_\delta=\begin{bmatrix}
+A_1&&&G_1\\&\ddots&&\vdots\\&&A_J&G_J\\G_1^\top&\cdots&G_J^\top&D
+\end{bmatrix},
+\end{equation}
+in which $G_j$ has nonzero columns only on $\partial I_j$.
+
+\begin{theorem}[exact chain condensation]\label{thm:chain}
+Suppose $H_\delta\succ0$ and \cref{def:certificate} holds. Then
+\begin{equation}\label{eq:reduced}
+S=D-\sum_{j=1}^{J}G_j^\top A_j^{-1}G_j\succ0
+\end{equation}
+is block tridiagonal on $R_1,\ldots,R_K$, with arbitrary coupling to $B$. For
+every right-hand side $f$, solving $H_\delta x=f$ is equivalent to
+\begin{equation}\label{eq:condense}
+\widehat f_R=f_R-\sum_jG_j^\top A_j^{-1}f_j,\qquad
+Sx_R=\widehat f_R,\qquad
+x_j=A_j^{-1}(f_j-G_jx_R).
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Each $A_j$ is a principal submatrix of an SPD matrix and is therefore
+invertible; block elimination gives~\eqref{eq:reduced} and~\eqref{eq:condense}.
+The update from component $j$ is supported on $\partial I_j\times\partial I_j$.
+By condition~(ii), it can fill only one retained group, two adjacent groups and
+the border. Condition~(i) gives the same restriction for $D$. Hence no two
+nonadjacent groups become coupled. Positive definiteness follows from the
+Schur-complement property of SPD matrices.
+\end{proof}
+
+\Cref{eq:reduced} is an algebraic description. The implementation forms neither
+$A_j^{-1}$ nor $A_j^{-1}G_j$; partial elimination of a local augmented matrix
+produces the retained-front update directly (\cref{sec:local-factor}).
+\Cref{fig:hierarchy} illustrates the structure.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  % (a) graph view
+  \foreach \x/\lab in {0/1,2.45/2,4.9/3}{
+    \draw[fill=papergray!15,draw=papergray] (\x,0) rectangle ++(1.7,0.9);
+    \node at (\x+0.85,0.45) {$I_{\lab}$};
+  }
+  \foreach \x/\lab in {1.95/1,4.4/2}{
+    \draw[fill=paperblue!35,draw=paperblue] (\x-0.2,0) rectangle ++(0.4,0.9);
+    \node[below] at (\x,0) {$R_{\lab}$};
+  }
+  \node at (6.95,0.45) {$\cdots$};
+  \draw[fill=paperorange!25,draw=paperorange] (0,1.65) rectangle (7.3,2.15);
+  \node at (3.65,1.9) {global border $B$};
+  \foreach \x in {0.85,3.3,5.75,1.95,4.4}{
+    \draw[densely dashed,papergray] (\x,0.9) -- (\x,1.65);
+  }
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt},papergray]
+    (0,-0.45) -- (6.6,-0.45) node[midway,below=4pt,align=center,font=\footnotesize]
+    {interiors: eliminated independently, in parallel};
+  \node[font=\footnotesize] at (3.65,2.55) {(a) retained interfaces and interior components};
+  % (b) reduced matrix
+  \begin{scope}[shift={(8.4,-0.6)}]
+    \def\n{4}\def\w{0.72}
+    \draw[papergray] (0,0) rectangle (3.5,3.5);
+    \foreach \k in {0,...,3}{
+      \fill[paperblue!45] ({\k*\w},{3.5-(\k+1)*\w}) rectangle ++(\w,\w);
+    }
+    \foreach \k in {0,...,2}{
+      \fill[paperblue!18] ({(\k+1)*\w},{3.5-(\k+1)*\w}) rectangle ++(\w,\w);
+      \fill[paperblue!18] ({\k*\w},{3.5-(\k+2)*\w}) rectangle ++(\w,\w);
+    }
+    \fill[paperorange!30] (4*\w,{3.5-4*\w}) rectangle (3.5,3.5);
+    \fill[paperorange!30] (0,0) rectangle (4*\w,{3.5-4*\w});
+    \fill[paperorange!60] (4*\w,0) rectangle (3.5,{3.5-4*\w});
+    \draw[papergray] (0,0) rectangle (3.5,3.5);
+    \node at (1.44,2.06) {$T$};
+    \node at (3.21,1.8) {$Q$};
+    \node at (3.21,0.33) {$C_B$};
+    \node[font=\footnotesize,align=center] at (1.75,3.95) {(b) reduced matrix $S$};
+  \end{scope}
+\end{tikzpicture}
+\caption{The certified hierarchy. (a) Removing the retained groups $R_k$ and the
+border $B$ leaves interior components $I_j$ that touch at most two consecutive
+groups. (b) Eliminating the interiors exactly yields a block-tridiagonal chain
+$T$ on $R_1,\ldots,R_K$ coupled to a small dense border block $C_B$.}
+\label{fig:hierarchy}
+\end{figure}
+
+\subsection{Separator pruning and temporal coarsening}
+
+Let $\SR_R(H)$ denote the Schur complement of $H$ onto $R$, obtained by
+eliminating $V\setminus R$.
+
+\begin{proposition}[associativity of Schur complements]\label{prop:assoc}
+If $R'\subseteq R$ and $H\succ0$, then $\SR_{R'}\bigl(\SR_R(H)\bigr)=\SR_{R'}(H)$.
+\end{proposition}
+
+\begin{proof}
+For fixed $x_R$,
+\begin{equation}\label{eq:minform}
+x_R^\top\SR_R(H)\,x_R=\min_{x_{V\setminus R}}x^\top Hx.
+\end{equation}
+Minimizing further over $x_{R\setminus R'}$ is the same as minimizing the
+original form over $x_{V\setminus R'}$. The quadratic forms coincide, and the
+minimizers are unique because $H\succ0$.
+\end{proof}
+
+\Cref{prop:assoc} justifies two simplifications. \emph{Carry pruning} absorbs
+separator rows that terminate in a one-sided branch into a neighboring interior,
+and \emph{temporal coarsening} removes selected cuts so that several stages
+form one interior. In both cases the new partition must again satisfy
+\cref{def:certificate} before a chain solver is used. The heuristic that proposes
+candidates is not trusted; only the certificate is. Reducing $|R|$ does not
+necessarily reduce total work, because larger interiors can create larger
+local fronts (\cref{sec:select}).
+
+\subsection{Existence of a compatible hierarchy}
+
+The certificate is not only an a posteriori test: under the modeling assumptions
+a compatible hierarchy can be constructed directly.
+
+\begin{theorem}[spaced-cut construction]\label{thm:spaced}
+Suppose \cref{ass:local,ass:support} hold. Choose an integer $h\ge\ell$, divide
+the stages into consecutive slabs of at most $h$ stages, place cuts at
+$h,2h,\ldots$ strictly before $N$, and retain the rows $Q_t$ of
+\cref{thm:monomial} at each cut. Then the retained sets are pairwise disjoint
+and, after empty groups are removed, satisfy \cref{def:certificate}. Every
+interior component lies in one slab. If each cut shares at most $s$ variables
+and $P=\binom{s+2r}{2r}$, then
+\begin{equation}\label{eq:spaced}
+p\le P,\qquad b_j\le2P+g,\qquad n_j\le hq,\qquad K\le N/h.
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+A row crossing the cuts at $t$ and $t+h$ has $a_i\le t$ and $b_i\ge t+h+1$, so
+its span is at least $h+2>\ell$, which contradicts \cref{ass:support}; hence no
+non-border row is retained twice. A non-retained row crosses no cut, so all of
+its resources lie in one slab, and rows in different slabs share no resource.
+Every interior component therefore lies in one slab, and since all of its rows
+first appear in that slab, it has at most $hq$ vertices.
+
+A retained neighbor of a component shares a resource inside the component's slab
+and crosses its own cut. If that cut were not a boundary cut of the slab, the
+row would also cross the boundary cut lying in between, and would be retained
+twice. Hence a component touches only the two boundary groups of its slab and
+$B$. Finally, two retained rows at nonconsecutive cuts cannot share a resource:
+at a cut strictly between them, the earlier row has all of its resources on the
+left and the later row all of its resources on the right, since otherwise one of
+them would cross two cuts. Empty groups have no incident edges and can be
+removed. The bounds follow from \cref{thm:monomial}, the slab argument and the
+number of cuts.
+\end{proof}
+
+The construction proves existence and correctness. It does not minimize fronts,
+and the solver usually retains smaller cuts and prunes more aggressively, using
+the certificate to validate each choice.
+
+\subsection{The rank-one correction}\label{sec:rankone}
+
+Let $v=H_\delta^{-1}u$. The Sherman--Morrison identity gives
+\begin{equation}\label{eq:sm}
+\Hfull^{-1}f=H_\delta^{-1}f-v\,\frac{u^\top H_\delta^{-1}f}{1+u^\top v}.
+\end{equation}
+Since $H_\delta\succ0$, the denominator is at least one in exact arithmetic.
+Preparing $v$ costs one extra base solve per factorization, and applying the
+correction costs $O(m)$ per right-hand side. The vector $v$, the denominator, the
+local factors and the reduced factors must all refer to the same matrix and
+shift, and floating-point acceptance checks the complete operator including the
+rank-one term (\cref{sec:acceptance}).

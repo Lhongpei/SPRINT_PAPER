@@ -1,0 +1,64 @@
+\section{Implementation correspondence and scope of claims}\label{app:implementation}
+
+\Cref{tab:source} maps the mechanisms of \cref{sec:algorithm} to the SPRINT source
+files. \todo{update file links to the release commit and decide whether to
+include them in the submitted version.}
+
+\begin{table}[htbp]
+\centering
+\caption{Mechanisms and their implementation in SPRINT.}
+\label{tab:source}
+\small
+\begin{tabular}{@{}p{0.48\linewidth}p{0.46\linewidth}@{}}
+\toprule
+Mechanism & Source\\
+\midrule
+Stage metadata for SOS formulations & \texttt{spot-custom/gen\_*\_stage\_sos.py}\\
+Stage separators, carry pruning, revalidation & \texttt{schur\_stage\_separator.hpp}\\
+Interior components, retained fronts, scatter layout & \texttt{schur\_component\_layout.hpp}\\
+Repeated-pattern grouping and coupling unions & \texttt{schur\_component\_groups.hpp}\\
+Supernodal panels and update DAG & \texttt{schur\_supernodal\_plan.\{hpp,cpp\}}\\
+Native partial factorization, condensation, recovery & \texttt{ipm\_gpu\_component\_supernodal.cu}\\
+Stage backend and reduced-solver portfolio & \texttt{ipm\_gpu\_stage\_pcr.cu}\\
+Shrinking-active-set cyclic reduction & \texttt{ipm\_gpu\_pcr.cu}\\
+Selector assembly, rank-one term, full-operator checks & \texttt{ipm\_gpu\_schur.cu}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Symbolic storage.}
+The component-layout builder allocates a pair-position table of
+$|R|^2$ entries and component-by-retained-row masks, so its storage is
+$O(m_R^2+Jm_R)$ in the worst case, even though the reduced chain has only
+$O(Kp^2+Kpg+g^2)$ structural entries. The supernodal plan builder also scans
+pairs of candidate source and target panels. The linear storage bound of
+\cref{thm:main} is therefore a statement about numerical storage, not about the
+peak memory of the executable. Sparse maps indexed only by present block pairs
+and component boundaries would remove these terms.
+
+\paragraph{Scope of the main claims.}
+\Cref{tab:claims} summarizes which claims are proved, which are implemented, and
+which are not established.
+
+\begin{table}[htbp]
+\centering
+\caption{Status of the principal claims.}
+\label{tab:claims}
+\small
+\begin{tabular}{@{}p{0.47\linewidth}p{0.47\linewidth}@{}}
+\toprule
+Claim & Status\\
+\midrule
+The solver performs exact hierarchical elimination & Implemented: native interior partial factors, reduced solve and native recovery\\
+Condensation preserves the operator & Proved in exact arithmetic under the SPD and certificate assumptions\\
+Pruning and coarsening preserve a chain & Accepted only after the certificate is rechecked\\
+Numerical elimination is linear in $N$ & Proved under the uniform local bounds of \cref{cor:linear}\\
+Total memory is linear in $N$ & Not established; symbolic indexing can be quadratic\\
+The whole IPM has logarithmic depth & Not established; \cref{cor:depth} concerns the elimination schedule\\
+Numerical factors are reused across iterations & No; symbolic plans and schedules are reused\\
+General sparse Cholesky is asymptotically slower & Not claimed; see \cref{prop:ordering}\\
+The complete solver runs in $O(N)$ time & Not claimed; outer iterations and setup must be included\\
+The relaxation certifies global optimality of the trajectory & Not implied by the linear-algebra results\\
+\bottomrule
+\end{tabular}
+\end{table}

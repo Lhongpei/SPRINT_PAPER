@@ -1,0 +1,67 @@
+\section{Related work}\label{sec:related}
+
+\paragraph{Sparse moment--SOS relaxations.}
+The moment--SOS hierarchy~\cite{lasserre2001global,parrilo2003semidefinite}
+becomes impractical for long trajectories unless sparsity is exploited.
+Correlative sparsity~\cite{waki2006sums,lasserre2006convergent} restricts
+monomials to cliques of interacting variables, and term
+sparsity~\cite{wang2021tssos,wang2022cstssos} further prunes the monomial bases.
+Occupation-measure relaxations of optimal control~\cite{lasserre2008nonlinear}
+and recent contact-rich planning relaxations~\cite{graesdal2024tight,kang2025spot}
+give the trajectory setting that motivates this work. These papers reduce the
+size of the relaxation. We take a fixed sparse relaxation as given and study the
+cost of solving its IPM Newton systems.
+
+\paragraph{Chordal structure and the complexity of sparse SDPs.}
+Chordal conversion and matrix completion~\cite{fukuda2001exploiting,nakata2003exploiting,kim2011exploiting,vandenberghe2015chordal}
+split large PSD constraints into overlapping small ones, and
+first-order methods exploit the same decomposition~\cite{zheng2020chordal}.
+\citet{zhang2020clique} showed that dualized clique-tree conversion gives
+near-linear-time IPMs for SDPs whose aggregate sparsity graph has small
+treewidth. \citet{zhang2024chordal} showed that sparsity of the aggregate graph
+alone does not control the Newton-system cost, because the incidence of
+constraints on blocks must also be accounted for. Our analysis follows this line
+but works directly on the coefficient-matching incidence of a fixed SOS
+relaxation. It derives separators from shared monomials and certifies the
+hierarchy used by the solver on the assembled Schur graph.
+
+\paragraph{Structured interior-point methods for optimal control.}
+For quadratic and nonlinear programs in optimal control, the stagewise structure
+of the KKT system is classical: Riccati recursions and block-tridiagonal
+factorizations give per-iteration cost linear in the
+horizon~\cite{wright1991partitioned,rao1998application,frison2020hpipm}.
+In SOS relaxations, the Newton variables are multipliers of coefficient
+equations indexed by monomials, not states and controls. Temporal coupling
+arises through monomials shared by PSD blocks, and pruning or coarsening can
+break a naive stage structure. This is why we need separator bounds and a
+certificate before a chain solver can be applied.
+
+\paragraph{Sparse direct methods.}
+The relation between elimination orderings and fill is
+classical~\cite{rose1976algorithmic,liu1990role}, as are nested
+dissection~\cite{george1973nested}, minimum-degree
+orderings~\cite{amestoy1996approximate}, multifrontal and supernodal
+factorizations~\cite{duff1983multifrontal,chen2008cholmod}, and their
+surveys~\cite{davis2016survey}. Block cyclic reduction solves block-tridiagonal
+systems with logarithmic depth~\cite{hockney1965fast,heller1976some}. We show
+in \cref{prop:ordering} that our hierarchy is one particular elimination
+ordering. Its value therefore lies in obtaining a certified ordering and an
+efficient GPU execution plan from the model, not in a new factorization
+algorithm. NVIDIA cuDSS~\cite{cudss} is the general sparse GPU baseline in our
+experiments.
+
+\paragraph{SDP solvers.}
+Primal--dual IPMs for SDP~\cite{helmberg1996interior,nesterov1997self,todd1998nesterov},
+with Mehrotra-type predictor--corrector steps~\cite{mehrotra1992implementation}
+and homogeneous self-dual embeddings~\cite{ye1994homogeneous}, underlie
+SeDuMi~\cite{sturm1999sedumi}, SDPT3~\cite{toh1999sdpt3} and
+MOSEK~\cite{mosek}. Parallel and GPU implementations have targeted the dense
+Schur complement of general SDPs~\cite{fujisawa2012sdpara}. Low-rank and
+first-order methods~\cite{burer2003nonlinear} scale to larger problems but
+typically reach lower accuracy, and BRISK~\cite{brisk} is the second CPU
+baseline in our experiments. \todo{one sentence describing BRISK's algorithm
+and its reference.} On the theoretical side, fast IPMs for SDP and SOS maintain
+approximate inverses of the Hessian across
+iterations~\cite{jiang2020faster,jiang2022sos}. That work exploits reuse across
+iterations, whereas we exploit temporal structure within one iteration;
+\cref{app:inverse} discusses how the two might be combined.

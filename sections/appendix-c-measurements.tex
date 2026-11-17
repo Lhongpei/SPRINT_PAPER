@@ -1,0 +1,86 @@
+\section{Additional measurements}\label{app:measurements}
+
+The measurements below come from earlier solver revisions. We report them for
+completeness; they are not paired with the results of \cref{sec:experiments}.
+
+\paragraph{Earlier H100 comparison on PushT.}
+\Cref{tab:h100} shows an earlier comparison of the stage backend with full cuDSS
+on one H100. Per-run records and repetition counts for this table were not
+preserved, so no ranges are given. At $N=30$, the Newton phase took $1.06$\,s
+for the stage route and $1.14$\,s for the direct route, so most of the
+end-to-end difference at that size came from outside the Newton phase.
+
+\begin{table}[htbp]
+\centering
+\caption{Earlier H100 solver times for PushT (reported values).}
+\label{tab:h100}
+\small
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+$N$ & Stage (s) & Full cuDSS (s) & Speedup\\
+\midrule
+10 & 1.96 & 2.20 & $1.12\times$\\
+30 & 2.89 & 3.93 & $1.36\times$\\
+100 & 8.08 & 9.28 & $1.15\times$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+An earlier design diagnostic at $N=30$ explains the move to native partial
+factorization. Local factorization cost about $18$\,ms, but explicitly applying
+$A_j^{-1}G_j$ cost $98$--$108$\,ms, against $8$\,ms for update and scatter and
+$6$\,ms for the PCR factorization. Producing the reduced system therefore cost far
+more than solving it. Native partial factorization replaced the explicit inverse
+action by retained-front updates, and pruning with coarsening reduced the
+retained dimension from $1566$ to $113$.
+
+\paragraph{Earlier PushBox comparison with MOSEK.}
+\Cref{tab:pushbox-old} reproduces an earlier PushBox comparison, reported as accepted under Rule~A, in
+which SPRINT used structured assembly with full cuDSS rather than the stage
+backend. \Cref{tab:pushbox} supersedes it.
+
+\begin{table}[htbp]
+\centering
+\caption{Earlier PushBox comparison with MOSEK (structured assembly, full cuDSS).}
+\label{tab:pushbox-old}
+\small
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+$N$ & SPRINT (s) & MOSEK (s) & Speedup\\
+\midrule
+5 & 1.698 & 1.460 & $0.86\times$\\
+10 & 2.000 & 2.407 & $1.20\times$\\
+20 & 2.688 & 5.205 & $1.94\times$\\
+30 & 3.436 & 7.458 & $2.17\times$\\
+50 & 4.782 & 10.798 & $2.26\times$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{CPU reference runs.}
+\Cref{tab:quest-cpu} lists single CPU runs of SPRINT's sparse direct backend on the
+PushT instances, used to validate the exported problems and the solution path.
+
+\begin{table}[htbp]
+\centering
+\caption{SPRINT CPU reference runs on PushT (Quest, single runs, Rule~A).}
+\label{tab:quest-cpu}
+\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+$N$ & Solver (s) & Process (s) & Iterations & Largest metric\\
+\midrule
+10 & 4.12 & 5.44 & 23 & $7.07\times10^{-5}$\\
+30 & 13.99 & 14.63 & 24 & $6.43\times10^{-5}$\\
+100 & 55.37 & 58.24 & 26 & $5.10\times10^{-5}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{MOSEK factor diagnostics.}
+For a chain-anchored moment formulation, MOSEK reports factor
+nonzeros of $2.36\times10^8$, $7.69\times10^8$ and $2.88\times10^9$ and factor
+flop counts of $6.30\times10^{11}$, $2.12\times10^{12}$ and $1.07\times10^{13}$ at
+$N=10,30,100$, giving endpoint exponents of $1.09$ and $1.23$. These runs stopped
+at a five-iteration cap and use a different formulation, so they indicate
+factor growth only.

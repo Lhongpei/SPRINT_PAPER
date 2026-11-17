@@ -1,0 +1,107 @@
+\section{Problem setting}\label{sec:setting}
+
+\subsection{Trajectory problems and SOS certificates}
+
+The underlying control problem has stage states $x_t$, controls $u_t$, and
+possibly contact forces or lifted variables $\lambda_t$:
+\begin{equation}\label{eq:ocp}
+\begin{aligned}
+\min_{x,u,\lambda}\quad &\phi(x_N)+\sum_{t=0}^{N-1}\ell_t(x_t,u_t,\lambda_t)\\
+\text{subject to}\quad &h_t(x_t,u_t,\lambda_t,x_{t+1})=0,\qquad
+g_t(x_t,u_t,\lambda_t,x_{t+1})\ge0,\qquad t=0,\dots,N-1.
+\end{aligned}
+\end{equation}
+After modeling or lifting, the objective and constraints are polynomial. For
+example, contact complementarity becomes $\lambda\ge0$, $d\ge0$ and $\lambda d=0$.
+For a polynomial problem $\min\{f(\xi):g_a(\xi)\ge0,\ h_b(\xi)=0\}$, a lower
+bound $\gamma$ is certified by an identity
+\begin{equation}\label{eq:sos}
+f-\gamma=\sum_c\sigma_{c,0}+\sum_{c,a}\sigma_{c,a}\,g_a+\sum_b\tau_b\,h_b,
+\qquad \sigma_{c,a}=v_{c,a}^{\top}Q_{c,a}v_{c,a},\quad Q_{c,a}\succeq0,
+\end{equation}
+where $v_{c,a}$ are vectors of monomials and $\tau_b$ are polynomial
+multipliers. Matching the coefficients of both sides of~\eqref{eq:sos}
+gives one affine constraint per monomial.
+
+\begin{example}[coefficient matching]\label{ex:matching}
+For $p(x)=p_0+p_1x+p_2x^2$ and $v=(1,x)$, the identity $p=v^\top Qv$ with
+$Q\in\Sym^2_+$ gives the three rows $Q_{11}=p_0$, $2Q_{12}=p_1$ and
+$Q_{22}=p_2$, one for each monomial $1,x,x^2$. In a trajectory relaxation, a
+monomial in the variables of stage $t$ appears only in the rows of the blocks
+attached to stages near~$t$. This locality is what we exploit.
+\end{example}
+
+The relaxation bound, together with the cost of a recovered feasible trajectory,
+gives an optimality-gap estimate for~\eqref{eq:ocp}. Tightness and extraction
+require conditions that are separate from the linear-algebra results of this
+paper.
+
+\subsection{The fixed finite SDP and its Newton system}
+
+Fix the horizon $N$, the relaxation order $r$, the correlative sparsity
+decomposition and the term-sparsity rules. The resulting finite SDP is
+\begin{equation}\label{eq:sdp}
+\min_{X_1,\ldots,X_C,\,z}\ \sum_{c=1}^{C}\langle C_c,X_c\rangle+c_z^\top z
+\quad\text{s.t.}\quad
+\sum_{c=1}^{C}\mathcal A_c(X_c)+Ez=b,\qquad X_c\in\Sym_+^{k_c},\quad z\in\R^{n_f},
+\end{equation}
+with $m$ equality rows, PSD blocks of order $k_c$, and $n_f$ free variables.
+The dimensions $N$, $m$ and $\sum_ck_c$ are distinct throughout. At an IPM
+iterate, the PSD contribution to the Schur matrix is
+\begin{equation}\label{eq:schur}
+(H_{\mathrm{psd}})_{ij}=\sum_{c=1}^{C}\tr\bigl(A_i^{(c)}W_cA_j^{(c)}W_c\bigr),
+\qquad W_c\succ0,
+\end{equation}
+where $W_c$ is the symmetric positive definite scaling matrix of block $c$
+(for example, the Nesterov--Todd scaling~\cite{nesterov1997self}).
+The free-variable representation used by our implementation adds a sparse term
+and a rank-one term, so we write the regularized operator as
+\begin{equation}\label{eq:operator}
+\Hfull=H_\delta+uu^\top,\qquad H_\delta=H_0+\delta I\succ0,
+\end{equation}
+where $H_0$ contains the PSD and sparse free-variable contributions and $u=0$
+when no rank-one term is present. Our graph analysis concerns $H_\delta$;
+the outer product $uu^\top$ is never expanded into the graph and is handled by
+the Sherman--Morrison formula (\cref{sec:rankone}).
+
+All exactness statements below refer to the linear system for a fixed $\delta$.
+They do not remove regularization error, and they do not imply that the finite
+relaxation solves the nonconvex problem~\eqref{eq:ocp}. A scalar shift is used
+for notation only; every result extends to a diagonal regularization matrix for
+which $H_\delta$ is positive definite.
+
+\subsection{Notation and computational model}
+
+\Cref{tab:notation} collects the main symbols. We count scalar arithmetic
+operations under classical dense kernels and sparse elimination, and we measure
+storage in scalar words. Numerical bounds assume that a valid symbolic plan and
+its index maps are available. Symbolic analysis, model construction, bit
+complexity, communication and kernel launches are accounted for separately. A
+bound stated as linear in $N$ always requires the indicated local parameters to
+remain bounded as $N$ grows.
+
+\begin{table}[htbp]
+\centering
+\caption{Main notation.}\label{tab:notation}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Symbol & Meaning\\
+\midrule
+$N,\ r$ & horizon and relaxation order\\
+$m,\ n_f$ & number of equality rows and free variables\\
+$\ell,\ q$ & maximum temporal span of a row; maximum number of rows first appearing at one stage\\
+$D,\ s$ & variables used per stage; variables shared across a cut\\
+$k_c,\ q_c,\ z_c$ & order of PSD block $c$, its number of incident rows, its stored coefficient coordinates\\
+$B,\ g$ & global border rows and $g=|B|$\\
+$R_1,\ldots,R_K$ & ordered, disjoint retained interface groups; $p=\max_k|R_k|$\\
+$P$ & monomial interface bound $\binom{s+2r}{2r}$\\
+$I_j,\ n_j$ & interior connected component and its size\\
+$\partial I_j,\ b_j$ & retained neighbors of $I_j$ and their number\\
+$d_v,\ w_j$ & later neighbors of interior pivot $v$; maximum later interior neighbors in $I_j$\\
+$\Phi_1,\ \Phi_2,\ \mathcal B_2$ & accumulated local-front measures and $\sum_jb_j^2$ (\cref{sec:local})\\
+$h$ & stage span of a coarsening slab\\
+$q_{\mathrm{rhs}}$ & number of right-hand sides per numerical factorization\\
+\bottomrule
+\end{tabular}
+\end{table}

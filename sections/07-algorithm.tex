@@ -1,0 +1,244 @@
+\section{A GPU interior-point solver}\label{sec:algorithm}
+
+\subsection{Overview}
+
+SPRINT is a primal--dual interior-point solver for problems of the
+form~\eqref{eq:sdp}. It uses a homogeneous self-dual
+embedding~\cite{ye1994homogeneous}, Mehrotra predictor--corrector
+steps~\cite{mehrotra1992implementation} and double-precision arithmetic. The
+outer method owns the scaling, regularization, step lengths and termination
+tests. A pluggable linear backend owns symbolic analysis, numerical
+factorization and solves for the current Schur operator, so the same IPM policy
+can run with CPU sparse direct solvers, full-system cuDSS, or the structured
+backend described here. \Cref{fig:pipeline} summarizes the structured backend.
+Its main design principle follows from \cref{sec:hierarchy,sec:complexity}:
+keep local numerical work local, and keep only the temporal coupling that must
+remain global. \todo{state the SPRINT code availability / repository link.}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=5mm and 5mm,
+  box/.style={draw=paperblue,rounded corners=2pt,align=center,font=\footnotesize,
+              minimum height=11mm,text width=22mm,fill=paperblue!6},
+  setup/.style={box,draw=paperteal,fill=paperteal!8},
+  fb/.style={box,draw=paperorange,fill=paperorange!10},
+  arr/.style={-{Stealth[length=2mm]},thick,paperblue}]
+  \node[box] (c) {Selector Schur\\assembly};
+  \node[box,right=of c] (d) {Batched local\\partial Cholesky};
+  \node[box,right=of d] (e) {Reduced solve:\\dense / PCR / cuDSS};
+  \node[box,right=of e] (f) {Condense,\\recover, rank-one\\correction};
+  \node[box,right=of f] (g) {Full-operator\\residual gate};
+  \node[setup,above=11mm of c] (a) {SOS SDP with\\stage metadata};
+  \node[setup,right=of a] (b) {Certified\\symbolic plan};
+  \node[box,above=11mm of g,fill=white] (ipm) {Accepted\\Newton direction};
+  \node[fb,below=9mm of g] (h) {Lazy fallback:\\full cuDSS};
+  \node[draw=papergray,densely dashed,rounded corners,inner sep=2.5mm,
+        fit=(c)(d)(e)(f)(g)] (loop) {};
+  \node[font=\footnotesize,text=papergray,anchor=north west] at (loop.south west)
+        {repeated for each operator generation (IPM iteration)};
+  \draw[arr] (a) -- (b);
+  \draw[arr] (b.south) -- (b.south |- loop.north);
+  \draw[arr] (c) -- (d);
+  \draw[arr] (d) -- (e);
+  \draw[arr] (e) -- (f);
+  \draw[arr] (f) -- (g);
+  \draw[arr] (g) -- node[right,font=\footnotesize]{accept} (ipm);
+  \draw[arr,paperorange] (g) -- node[right,font=\footnotesize]{reject} (h);
+  \node[setup,fill=none,draw=none,text width=34mm,right=2mm of b,
+        font=\footnotesize\itshape,text=papergray]
+        {once per problem: separators, pruning, coarsening, certificate, supernodal plans};
+\end{tikzpicture}
+\caption{Structure of the SPRINT stage backend. Setup (teal) runs once per
+problem. Each IPM operator generation assembles the Schur matrix, factors the
+interior components in batches, solves a small reduced system, and accepts a
+direction only after a residual check against the full operator; on rejection,
+a lazily created full-system cuDSS factorization of the same operator is used.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Symbolic preparation}
+
+The customized SPOT exporter attaches stage metadata to PSD blocks, free
+variables and coefficient rows, while leaving the SDP coefficients unchanged.
+The metadata is used only to \emph{propose} interfaces; the assembled
+conservative Schur pattern is the final authority. Initial separators come from
+stage-local connectivity and vertex cuts. Carry pruning and coarsening then
+propose smaller retained sets, and every proposal is accepted only after the
+certificate of \cref{def:certificate} has been checked on the actual pattern.
+When the last physical cut disappears, its tail joins an interior component and
+the remaining groups are reindexed consecutively. CHOLMOD~\cite{chen2008cholmod}
+is used for symbolic ordering only; the numerical factorization runs on arrays
+owned by SPRINT. \Cref{alg:symbolic} summarizes the procedure.
+
+\begin{algorithm}[htbp]
+\caption{Symbolic preparation (once per problem)}\label{alg:symbolic}
+\small
+\begin{algorithmic}[1]
+\Require SDP coefficient maps, conservative Schur pattern $G$, stage metadata, border $B$
+\Ensure a certified structured symbolic plan, or a general-solver route
+\State validate row indices, stage metadata and the complete Schur pattern
+\State propose stage separators; optionally apply carry pruning and coarsening
+\State form disjoint groups $R_1,\ldots,R_K$ with compact indices
+\State find the components $I_j$ of $G[V\setminus R]$
+\If{a retained edge or a component boundary violates \cref{def:certificate}}
+  \State \Return general-solver route
+\EndIf
+\State build local interior/front patterns and scatter maps from the global Schur storage
+\State order each interior with its retained front last; build supernodal plans
+\State group components with compatible patterns; build packing and execution schedules
+\State build the reduced chain/border pattern and select its solver route
+\State allocate reusable buffers and publish the plan
+\end{algorithmic}
+\end{algorithm}
+
+The linear-time certificate check does not bound every step of
+\cref{alg:symbolic}: separator search, ordering, pattern grouping and the
+current indexing structures have their own costs (\cref{app:implementation}).
+
+\subsection{Assembly and local partial factorization}\label{sec:local-factor}
+
+At each iterate, the solver computes the cone scalings and assembles the
+numerical Schur matrix, choosing per block between sparse-coordinate selection
+(\cref{prop:selector}) and a dense block path. The current implementation
+assembles the global sparse matrix before packing local panels.
+
+For component $j$, only the $A_j$ variables of the local augmented matrix
+$\bigl[\begin{smallmatrix}A_j&G_j\\G_j^\top&0\end{smallmatrix}\bigr]$
+are eliminated, so its retained block becomes $-G_j^\top A_j^{-1}G_j$. The
+augmented matrix need not be positive definite; positive definiteness is
+required only of the interior pivots and of the assembled reduced matrix. With an
+optional positive diagonal equilibration $\Lambda_j$,
+\begin{equation}\label{eq:local-factor}
+\Lambda_jA_j\Lambda_j=L_jL_j^\top,\qquad C_j=L_j^{-1}\Lambda_jG_j,
+\end{equation}
+the local update is $-C_j^\top C_j$. For a right-hand side, with
+$q_j=L_j^{-1}\Lambda_jf_j$, condensation and recovery are
+\begin{equation}\label{eq:local-solve}
+\widehat f_R=f_R-\sum_jC_j^\top q_j,\qquad x_j=\Lambda_jL_j^{-\top}(q_j-C_jx_R).
+\end{equation}
+These formulas describe the panel operations; no dense matrix holding the $C_j$
+is formed. Equilibration is a change of coordinates and adds no regularization.
+
+\subsection{Repeated patterns and scheduling}
+
+Most stage interiors share the same sparsity pattern. The solver groups such
+components, optionally taking a union of compatible coupling patterns with
+explicit zeros, so that each group shares one symbolic plan while numerical
+values and factors remain per instance. Within a plan, an update task runs once
+its source panel is ready. Independent components and nonconflicting task
+groups run concurrently, overlapping writes follow an explicit order, and
+repeated schedules are captured as CUDA graphs to reduce launch overhead. The
+retained front is an update destination throughout and is never factored as a
+local pivot. Union patterns and relaxed supernodes add structural zeros, so the
+cost~\eqref{eq:panel} is evaluated on the padded plans.
+
+\subsection{Reduced system, recovery and the numerical contract}
+
+After the local fronts are computed, the solver forms
+$S=D+\sum_jF_j$ with $F_j=-G_j^\top A_j^{-1}G_j$, adding contributions to a
+shared entry in a fixed order. The reduced system is solved by dense Cholesky
+when it is small, by block cyclic reduction (PCR) when the certified chain and
+the backend limits allow it, and by sparse cuDSS otherwise. A dense route is
+consistent with the asymptotic bounds only under a size threshold independent
+of~$N$, and a sparse route inherits the complexity of its own ordering. After the
+retained variables are solved, the backward pass recovers the interior variables
+from the same local factors, and the rank-one correction~\eqref{eq:sm} is
+applied. \Cref{alg:factor,alg:solve} state the dependencies and the acceptance
+contract.
+
+\begin{algorithm}[htbp]
+\caption{Numerical factorization for one operator generation}\label{alg:factor}
+\small
+\begin{algorithmic}[1]
+\Require symbolic plan, current cone scalings, shift $\delta$
+\Ensure published factors and rank-one preparation, or a reported failure
+\State assemble $H_0$ and the rank-one vector $u$; form $H_\delta=H_0+\delta I$ once
+\State pack local panels from $H_\delta$ and apply consistent equilibration
+\State factor the interior panels (batched by template) and accumulate the retained fronts
+\State check every local factor status and finite-value flag
+\State assemble and factor the reduced operator on the selected route
+\State if $u\ne0$, compute $v=H_\delta^{-1}u$ and $1+u^\top v$
+\State validate and publish the factor generation
+\Statex \emph{On failure:} invalidate all dependent state; a fallback may factor the
+same operator; if the IPM changes $\delta$, restart for the new generation.
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+\caption{Checked solve with a published factor generation}\label{alg:solve}
+\small
+\begin{algorithmic}[1]
+\Require published factors, right-hand side $f$, tolerance, refinement budget
+\Ensure an accepted solution of the full operator $\Hfull x=f$, or failure
+\State condense $f$ through the local forward factors
+\State solve the reduced system for $x_R$; recover all interior variables
+\State apply the rank-one correction of the same generation
+\State compute the residual against the original full operator
+\If{statuses, finite values and residual pass} \State \Return $x$ \EndIf
+\State refine within the budget, or reject the route and solve the same
+  operator with the lazily created fallback; report failure if no route succeeds
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Integration with the IPM.}
+An accepted factorization serves several right-hand sides, but the corrector
+right-hand side depends on the predictor and cannot be prepared in advance. Reuse
+is therefore organized around one operator generation and a sequence of solves.
+A rejected factor or a changed shift invalidates its rank-one preparation,
+reduced factor and saved recovery data, and an affine direction computed for one
+operator is never combined with a corrector from an incompatible factor state.
+
+\subsection{Numerical acceptance}\label{sec:acceptance}
+
+\Cref{thm:chain,thm:main} hold in exact arithmetic. In floating point, a valid
+certificate does not prevent loss of accuracy, so the residual is computed with
+the original assembled operator after recovery and the rank-one correction; a
+reduced residual alone cannot detect an inaccurate condensation or recovery. For
+$M=\Hfull\succ0$, $f\ne0$ and a computed $\widehat x$, let
+$r_f=f-M\widehat x$ and $\eta_2=\|r_f\|_2/\|f\|_2$.
+
+\begin{proposition}[residual interpretation]\label{prop:residual}
+If $x=M^{-1}f$, then $\|\widehat x-x\|_M=\|r_f\|_{M^{-1}}$ and
+$\|\widehat x-x\|_2/\|x\|_2\le\kappa_2(M)\,\eta_2$.
+\end{proposition}
+
+\begin{proof}
+Since $\widehat x-x=-M^{-1}r_f$, the squared energy norm is $r_f^\top M^{-1}r_f$.
+Also $\|\widehat x-x\|_2\le\|M^{-1}\|_2\|r_f\|_2$ and $\|f\|_2\le\|M\|_2\|x\|_2$.
+\end{proof}
+
+\begin{proposition}[effect of the shift]\label{prop:shift}
+If $M_0=H_0+uu^\top\succ0$, $\delta\ge0$, $x_0=M_0^{-1}f$ and
+$x_\delta=(M_0+\delta I)^{-1}f$, then
+$\|x_\delta-x_0\|_2/\|x_0\|_2\le\delta/(\lambda_{\min}(M_0)+\delta)$.
+\end{proposition}
+
+\begin{proof}
+The resolvent identity gives $x_\delta-x_0=-\delta(M_0+\delta I)^{-1}x_0$, and the
+multiplying matrix has spectral norm $\delta/(\lambda_{\min}(M_0)+\delta)$.
+\end{proof}
+
+A small residual therefore does not imply a small forward error independently of
+conditioning, and it does not certify feasibility or optimality for the SDP;
+those remain the job of the outer termination test and of the independent
+checks in \cref{sec:experiments}. Some stabilized routes factor an auxiliary
+matrix $H_\delta+D_{\mathrm{priv}}$ and use it as a preconditioner for the target
+system. Acceptance then uses the target operator with $D_{\mathrm{priv}}$
+excluded, and the solver reports failure when the contract cannot be met.
+
+\subsection{Choosing a hierarchy}\label{sec:select}
+
+For a candidate retention and coarsening configuration $\theta$,
+\cref{thm:main} suggests the structural estimate
+\begin{equation}\label{eq:cost-model}
+\widehat W(\theta)=\Phi_2(\theta)+\mathcal B_2(\theta)+K(\theta)p(\theta)^3
++K(\theta)p(\theta)^2g+K(\theta)p(\theta)g^2+g^3,
+\end{equation}
+in which~\eqref{eq:ragged} and~\eqref{eq:panel} can replace the conservative
+terms. Coarsening usually reduces the number of groups but enlarges the
+components, and pruning can shrink interfaces but increase local fill, so
+separator cardinality alone is an incomplete objective. The current
+implementation uses structural gates and empirically tuned thresholds. Selecting
+the hierarchy automatically by minimizing~\eqref{eq:cost-model}, extended with
+launch and bandwidth terms, is future work.

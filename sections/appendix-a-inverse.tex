@@ -1,0 +1,68 @@
+\section{Toward factor reuse across iterations}\label{app:inverse}
+
+\citet{jiang2022sos} develop an IPM for SOS optimization that maintains an
+approximate inverse of the Hessian across iterations in an interpolant
+representation. Their method exploits reuse across iterations, whereas
+\cref{sec:structure,sec:hierarchy,sec:complexity} exploit temporal structure
+within one iteration. SPRINT uses a block-SDP scaling representation and
+recomputes numerical factors at every iteration while reusing symbolic
+structure. The two results below state conditions that a future combination
+would have to respect; they are derived for the operator~\eqref{eq:schur}.
+
+\subsection{A low-rank scaling change can have larger Schur rank}
+
+For one PSD block of order $k$, define $\mathcal L_W(X)=WXW$ and
+$H_c(W)=\mathcal A_c\mathcal L_W\mathcal A_c^*$, where
+$\mathcal A_c(X)=(\langle A_i^{(c)},X\rangle)_i$; this reproduces~\eqref{eq:schur}.
+
+\begin{proposition}[rank of an induced Schur update]\label{prop:rank}
+Let $W,W'\succ0$ with $\operatorname{rank}(W'-W)=\rho$, and restrict $H_c$ to its
+$q_c$ incident rows. Then
+\begin{equation}\label{eq:rank}
+\operatorname{rank}\bigl(H_c(W')-H_c(W)\bigr)\le\min\Bigl\{q_c,\ \frac{\rho(2k-\rho+1)}2\Bigr\}.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Let $C=W^{-1/2}W'W^{-1/2}\succ0$, so $\operatorname{rank}(C-I)=\rho$, and let
+$\mathcal T_W(X)=W^{1/2}XW^{1/2}$, an invertible map on $\Sym^k$. Then
+$\mathcal L_{W'}-\mathcal L_W=\mathcal T_W\circ(\mathcal L_C-\mathcal I)\circ\mathcal T_W$.
+Diagonalize $C$ orthogonally; at least $k-\rho$ of its eigenvalues equal one. In
+the induced basis of $\Sym^k$, $\mathcal L_C-\mathcal I$ multiplies coordinate
+$(i,j)$ by $\lambda_i\lambda_j-1$, which vanishes when both indices lie in the
+unchanged eigenspace. Its rank is therefore at most
+$\frac{k(k+1)}2-\frac{(k-\rho)(k-\rho+1)}2=\frac{\rho(2k-\rho+1)}2$, and
+composing with $\mathcal A_c$ and $\mathcal A_c^*$ cannot increase rank.
+\end{proof}
+
+The bound is attained in general even for $\rho=1$: with $W=I$,
+$W'=I+\tau e_1e_1^\top$ ($\tau>0$) and a coefficient map spanning $\Sym^k$, the
+$k$ coordinates in the first row and column change, so the Schur update has rank
+$k$. Summed over many blocks, the rank of the global change can grow with $N$
+whenever a fixed fraction of the blocks changes. Low rank at the level of
+individual scalings therefore does not give a low-rank global update.
+
+\subsection{Spectral approximation survives exact condensation}
+
+\begin{proposition}[Schur-complement spectral bounds]\label{prop:spectral}
+Let $H,\widetilde H\succ0$ satisfy $(1-\eta)H\preceq\widetilde H\preceq(1+\eta)H$
+with $0\le\eta<1$. Then for every retained set $R$,
+\begin{equation}\label{eq:spectral}
+(1-\eta)\,\SR_R(H)\preceq\SR_R(\widetilde H)\preceq(1+\eta)\,\SR_R(H).
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Fix $x_R$. The lower inequality holds for every completion $x_I$; minimizing
+over $x_I$ and using~\eqref{eq:minform} gives the lower bound. For the upper
+bound, evaluate the form of $\widetilde H$ at the completion that minimizes the
+form of $H$, and then minimize.
+\end{proof}
+
+A relative spectral bound on the full operator is therefore inherited by its
+exact reduced operator, with no factor depending on the number of stages. Obtaining
+such a bound from approximate local contributions is a separate problem:
+small entrywise errors in $D$ and in the local fronts need not control their
+difference $D-\sum_jG_j^\top A_j^{-1}G_j$ when it involves heavy cancellation.
+A reuse policy would also have to meet the inexact-Newton requirements of the
+outer method.

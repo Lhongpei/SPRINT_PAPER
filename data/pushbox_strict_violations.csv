@@ -1,0 +1,11 @@
+N,solver,metrics_above_1e-6
+5,BRISK,unaveraged_complementarity=2.11e-6
+5,MOSEK,primal_equality=5.42e-6;unaveraged_complementarity=2.14e-5
+10,BRISK,dual_equality;objective_gap;psd_distance_X;psd_distance_S;unaveraged_complementarity
+10,MOSEK,primal_equality=2.78e-6;unaveraged_complementarity=3.52e-5
+20,BRISK,dual_equality;objective_gap;psd_distance_X;psd_distance_S;unaveraged_complementarity
+20,MOSEK,primal_equality=1.81e-6;unaveraged_complementarity=9.98e-6
+50,BRISK,objective_gap;psd_distance_X;psd_distance_S;unaveraged_complementarity
+50,MOSEK,primal_equality=1.78e-6;unaveraged_complementarity=4.11e-6
+80,BRISK,objective_gap;psd_distance_X;psd_distance_S;unaveraged_complementarity
+80,MOSEK,primal_equality=2.28e-6;unaveraged_complementarity=1.44e-5

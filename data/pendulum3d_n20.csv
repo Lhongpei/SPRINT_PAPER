@@ -1,0 +1,9 @@
+metric,mosek_cpu_8threads,gipm_gpu_h100
+ipm_iterations,21,35
+solver_internal_sec,1173.01,95.11
+reduced_model_read_to_solution_wall_sec,1183.74,99.52
+original_sdp_to_backsubstitution_acceptance_sec,1248.52,162.89
+strict_1e-6_metrics_passed,8/8,8/8
+max_relative_error_original_sdp,1.08e-7,3.49e-9
+sos_objective,821.6721189640,821.6721187165
+terminal_angle_error_deg,0.143634,0.143654

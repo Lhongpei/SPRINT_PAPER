@@ -1,0 +1,144 @@
+\section{Temporal structure of the SOS Newton system}\label{sec:structure}
+
+\subsection{The resource graph}
+
+For each PSD block $c$ and free variable $a$, define the row supports
+\begin{equation}\label{eq:support}
+\mathcal R_c=\{i:A_i^{(c)}\ne0\},\qquad \mathcal R_a=\{i:E_{ia}\ne0\}.
+\end{equation}
+We call a PSD block or a free variable a \emph{resource}.
+
+\begin{definition}[resource graph]\label{def:resource}
+The resource graph $G=(V,\mathcal E)$ has one vertex per equality row. Each
+resource support $\mathcal R_c$ or $\mathcal R_a$ induces a clique in~$G$.
+\end{definition}
+
+\begin{lemma}[structural envelope]\label{lem:envelope}
+The off-diagonal sparsity pattern of $H_\delta$ is contained in $G$. For any
+elimination order, the numerical fill of $H_\delta$ is contained in the symbolic
+fill of $G$ for the same order.
+\end{lemma}
+
+\begin{proof}
+If rows $i$ and $j$ share no PSD block, every term in~\eqref{eq:schur} contains
+a zero coefficient matrix. The sparse free-variable term couples two rows only
+if they share a free variable, and the diagonal shift creates no off-diagonal
+entries. During elimination, a pivot updates only pairs of its later neighbors,
+so induction over the elimination order proves the fill statement.
+\end{proof}
+
+Sharing a resource makes coupling possible but does not force a nonzero
+entry. Conversely, two rows using disjoint coordinates of the same PSD block are
+generally coupled, because $W_c$ is dense. The analysis uses the conservative
+envelope and never relies on numerical cancellation.
+
+\subsection{A monomial separator bound}
+
+\begin{assumption}[local coefficient representation]\label{ass:local}
+Each coefficient-matching row is identified by a unique monomial $x^\alpha$ with
+$|\alpha|\le2r$. Each resource is assigned to one stage, and every monomial in
+its row support uses only variables local to that resource. Rows outside this
+representation are placed in the border set $B$. No dense row transformation is
+applied that destroys this support structure.
+\end{assumption}
+
+At a temporal cut $t$, split the resources into left and right sets
+$\mathcal U_L(t)$ and $\mathcal U_R(t)$. Let $V_L(t)$ and $V_R(t)$ be the unions
+of their polynomial variables, and define
+\begin{equation}\label{eq:shared}
+S_t=V_L(t)\cap V_R(t),\qquad s_t=|S_t|.
+\end{equation}
+Let $Q_t$ be the rows outside $B$ that are incident to resources on both sides.
+
+\begin{theorem}[monomial interface bound]\label{thm:monomial}
+Under \cref{ass:local}, $Q_t$ separates the left-exclusive rows from the
+right-exclusive rows in $G[V\setminus B]$, and
+\begin{equation}\label{eq:monomial}
+|Q_t|\le\binom{s_t+2r}{2r}.
+\end{equation}
+If the constant row exists and belongs to $B$, the bound decreases by one.
+\end{theorem}
+
+\begin{proof}
+A row in $Q_t$ corresponds to a monomial that occurs in a resource on each side
+of the cut. Its variables therefore lie in $V_L(t)\cap V_R(t)=S_t$. There are
+exactly $\binom{s_t+2r}{2r}$ monomials of degree at most $2r$ in $s_t$
+variables, and unique row identification prevents double counting. After
+deleting $Q_t$, every remaining row is exclusive to one side. If a left-exclusive
+row and a right-exclusive row were adjacent, they would share a resource; that
+resource lies on one side only, which contradicts the exclusivity of one of the
+rows.
+\end{proof}
+
+The bound depends on the shared variables, not on the size of a stage. A stage
+with $D$ variables can carry up to $\binom{D+2r}{2r}$ coefficient monomials,
+while the interface it creates is controlled by $\binom{s_t+2r}{2r}$; term
+sparsity can reduce both counts further. For example, $s_t=6$ and $r=2$ give the
+conservative bound $210$. Applying such a value to a model requires checking the
+complete variable unions of the resources on both sides, not only the dimension
+of the state vector.
+
+\subsection{Bounded temporal support and an explicit linear-work ordering}
+
+For a row $i\notin B$, let $\mathcal T_i$ be the set of stages of its incident
+resources, and define its occurrence interval
+\begin{equation}\label{eq:interval}
+J_i=[a_i,b_i],\qquad a_i=\min\mathcal T_i,\quad b_i=\max\mathcal T_i.
+\end{equation}
+
+\begin{assumption}[bounded temporal support]\label{ass:support}
+There are bounds $\ell,q,g$, independent of $N$, such that $|B|=g$, every row
+$i\notin B$ satisfies $b_i-a_i+1\le\ell$, and at most $q$ rows first appear at
+any one stage.
+\end{assumption}
+
+Under \cref{ass:local}, a stage that uses at most $D$ variables gives
+$q\le\binom{D+2r}{2r}$. If every non-global variable is used only within a
+stage window of length $\ell$, every monomial containing such a variable has
+span at most $\ell$. Monomials in global variables only, including the constant
+monomial, must be placed in $B$, so a bounded number of them is part of the
+assumption.
+
+\begin{theorem}[interval path decomposition]\label{thm:interval}
+Under \cref{ass:support}, $G$ has a path decomposition of width at most
+$\ell q+g-1$. Eliminating the rows outside $B$ in nondecreasing order of $b_i$,
+followed by $B$, costs
+\begin{equation}\label{eq:interval-cost}
+W_{\mathrm{chol}}=O\bigl(Nq(\ell q+g)^2+g^3\bigr),\qquad
+M_{\mathrm{chol}}=O\bigl(Nq(\ell q+g)+g^2\bigr).
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+For each stage $t$, form the bag $X_t=B\cup\{i:t\in J_i\}$. Every vertex lies in
+a bag. Two non-border rows that share a resource both lie in the bag of that
+resource's stage, and border vertices lie in every bag, so all edges are
+covered. The bags containing a non-border row form its interval $J_i$, which
+gives the running-intersection property. If $t\in J_i$, then $a_i$ is one of the
+$\ell$ stages ending at $t$, so $|X_t|\le\ell q+g$.
+
+For the explicit order, consider the supergraph in which two non-border rows are
+adjacent whenever their intervals intersect, and every border vertex is adjacent
+to all vertices. When the remaining interval with the smallest right endpoint
+$b_i$ is eliminated, every remaining neighboring interval contains $b_i$, so
+these neighbors and $B$ already form a clique. The order therefore creates no
+fill in the supergraph, and the symbolic fill of its subgraph $G$ stays within
+the same envelope. Each of the at most $Nq$ non-border pivots has front size at
+most $\ell q+g$, costing $O((\ell q+g)^2)$ work and $O(\ell q+g)$ storage;
+the final border costs $O(g^3)$ work and $O(g^2)$ storage.
+\end{proof}
+
+The link between graph width and factorization cost is standard; the point here
+is that the intervals come directly from SOS resource incidence, in line with the
+observation of~\citet{zhang2024chordal} that constraint incidence, not only the
+aggregate sparsity graph, controls Newton-system cost. \Cref{thm:interval}
+guarantees its explicit order, not the width found by a generic AMD or
+nested-dissection ordering. Its bag-based bound is also conservative when most
+rows of a stage belong to small, independent substructures.
+
+Separators at different cuts need not be disjoint: a monomial can persist across
+several cuts, and minimum separators chosen independently at each cut need not
+produce a block-tridiagonal reduced system. Duplicating rows to force
+disjointness would change the formulation. The next section therefore states
+the compatibility requirement explicitly and certifies it on the retained sets
+that the solver actually uses.

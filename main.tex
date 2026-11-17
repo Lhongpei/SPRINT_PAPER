@@ -1,0 +1,87 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern,microtype}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,thmtools,bm,mathtools,mathrsfs}
+\usepackage{booktabs,array,multirow,tabularx}
+\usepackage{graphicx,xcolor}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{tikz,pgfplots}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,decorations.pathreplacing}
+\pgfplotsset{compat=1.18}
+\usepackage{enumitem}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+\usepackage[capitalise,nameinlink]{cleveref}
+
+\definecolor{paperblue}{HTML}{17324D}
+\definecolor{paperteal}{HTML}{007F83}
+\definecolor{paperorange}{HTML}{C8611B}
+\definecolor{papergray}{HTML}{6B7280}
+\hypersetup{colorlinks=true,linkcolor=paperblue,citecolor=paperteal,urlcolor=paperteal,
+  pdftitle={SPRINT: A GPU Interior-Point Method for Sum-of-Squares Relaxations of Robot Trajectory Optimization}}
+
+\declaretheorem[name=Theorem,numberwithin=section]{theorem}
+\declaretheorem[name=Lemma,sibling=theorem]{lemma}
+\declaretheorem[name=Proposition,sibling=theorem]{proposition}
+\declaretheorem[name=Corollary,sibling=theorem]{corollary}
+\declaretheorem[name=Definition,style=definition,sibling=theorem]{definition}
+\declaretheorem[name=Assumption,style=definition,sibling=theorem]{assumption}
+\declaretheorem[name=Example,style=definition,sibling=theorem]{example}
+\declaretheorem[name=Remark,style=remark,sibling=theorem]{remark}
+\crefname{algorithm}{Algorithm}{Algorithms}
+\crefname{assumption}{Assumption}{Assumptions}
+\crefname{example}{Example}{Examples}
+\crefname{remark}{Remark}{Remarks}
+
+% Draft markers. Change \drafttrue to \draftfalse to hide all TODO notes.
+\newif\ifdraft \drafttrue
+\newcommand{\todo}[1]{\ifdraft{\color{red}\textsf{[TODO: #1]}}\fi}
+
+\newcommand{\R}{\mathbb R}
+\newcommand{\Sym}{\mathbb S}
+\newcommand{\nnz}{\operatorname{nnz}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\Hfull}{\mathscr H_\delta}
+\newcommand{\SR}{\mathcal S}
+\newcommand{\Oh}{O}
+
+\setlength{\emergencystretch}{2em}
+
+\title{SPRINT: A GPU Interior-Point Method for Sum-of-Squares Relaxations\\
+of Robot Trajectory Optimization}
+\author{Hongpei Li\thanks{\todo{affiliation, e-mail}} \and \todo{co-authors}}
+\date{\todo{date / venue}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\input{sections/00-abstract}
+\end{abstract}
+
+\noindent\textbf{Keywords:} robot trajectory optimization; contact-rich manipulation;
+sum-of-squares optimization; semidefinite programming; interior-point methods;
+sparse Cholesky factorization; GPU computing.
+
+\input{sections/01-introduction}
+\input{sections/02-related}
+\input{sections/03-setting}
+\input{sections/04-structure}
+\input{sections/05-hierarchy}
+\input{sections/06-complexity}
+\input{sections/07-algorithm}
+\input{sections/08-experiments}
+\input{sections/09-discussion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix-a-inverse}
+\input{sections/appendix-b-implementation}
+\input{sections/appendix-c-measurements}
+
+\end{document}

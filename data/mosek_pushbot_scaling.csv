@@ -1,0 +1,8 @@
+N,m,mosek_sec,sec_per_stage,status
+10,15163,6.34,0.634,PrimalAndDualFeasible
+20,30173,12.75,0.6375,PrimalAndDualFeasible
+30,45183,23.87,0.7956666666666667,PrimalAndDualFeasible
+50,75203,35.76,0.7152,PrimalAndDualFeasible
+100,150253,81.6,0.816,PrimalAndDualFeasible
+200,300353,131.9,0.6595,PrimalAndDualFeasible
+300,450453,210.04,0.7001333333333333,PrimalAndDualFeasible

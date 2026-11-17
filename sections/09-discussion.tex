@@ -1,0 +1,62 @@
+\section{Discussion and limitations}\label{sec:discussion}
+
+\paragraph{What the guarantees cover.}
+The linear-work results are constructive. They follow from a resource-incidence
+model, an explicit temporal ordering and a certificate on the retained
+hierarchy, and they bound the \emph{numerical} elimination for a fixed
+regularized operator. Three costs are outside their scope. First, symbolic
+setup: the current component-layout builder uses dense pair-position and
+component-by-row tables of size $O(m_R^2+Jm_R)$ for $m_R=|R|$, so peak setup
+memory is not yet linear (\cref{app:implementation}), and setup takes about as
+long as the Newton loop at $N=100$ (\cref{tab:phases}). Second, the number of
+outer iterations: we give no iteration bound for the implemented homogeneous
+self-dual Mehrotra method, although the observed counts grow slowly. Third,
+floating-point accuracy: exactness of condensation does not protect against
+ill-conditioning, which is why every direction is checked against the full
+operator and a fallback exists.
+
+\paragraph{What the experiments show.}
+The strongest results are the comparisons with MOSEK and BRISK
+(\cref{sec:pushbox,sec:pendulum}), where SPRINT is faster from moderate horizons
+on and, on PushBox, is the only solver that meets a strict $10^{-6}$ check on the
+original SDP. They compare complete solver systems on different hardware (one
+GPU versus a multicore CPU), and the baselines were measured earlier than the
+current SPRINT version. The paired comparison with cuDSS (\cref{sec:cudss}) holds
+the hardware and the IPM fixed. It shows a consistent but modest gain from the
+hierarchy itself, which agrees with \cref{prop:ordering}: a general sparse
+factorization can find comparable orderings, and the remaining advantage lies in
+execution. The phase breakdown shows that the reduced system is a negligible
+cost and that local partial factorization dominates, as \cref{thm:main}
+predicts.
+
+\paragraph{Future work.}
+Four directions follow directly. (i) Assembling cone contributions directly into
+local panels would remove the global sparse Schur matrix from the critical path.
+(ii) Sparse indexing of the symbolic structures would extend the linear bounds
+to total memory. (iii) Choosing the hierarchy by minimizing the cost
+model~\eqref{eq:cost-model}, extended with hardware terms, would replace the
+current empirical thresholds. (iv) Reusing factors across iterations, in the
+spirit of inverse maintenance~\cite{jiang2022sos}, is attractive because spectral
+approximation survives exact condensation without dependence on $N$
+(\cref{prop:spectral}). However, a rank-one change of one scaling matrix can
+induce a rank-$k$ change of the Schur matrix (\cref{prop:rank}), so cheap
+updates are not automatic.
+
+\section{Conclusion}\label{sec:conclusion}
+
+Temporal repetition makes trajectory SOS relaxations large, but it also leaves
+their coefficient resources and elimination interfaces local. We made this
+precise with monomial separator bounds, an explicit linear-work ordering, and a
+linear-time certificate under which interior elimination produces an exact
+block-tridiagonal system with a border. The resulting cost bounds depend on
+actual elimination fronts and interface widths, and they guided the design of a
+GPU interior-point solver whose structured backend factors repeated local
+patterns in batches and leaves only a small reduced system. In experiments, this
+solver matches or exceeds the accuracy of MOSEK and BRISK and is faster from
+moderate horizons on, by up to $3.2\times$ on PushBox and $12.3\times$ in solver
+time on a 3D pendulum problem. We see this as evidence that interior-point
+methods, combined with model-aware exact elimination on GPUs, can make
+high-accuracy SOS relaxations practical for long-horizon robot trajectory
+optimization. Because the analysis relies only on temporal locality, the same
+approach applies to other multistage polynomial optimization problems, which we
+plan to study next.

@@ -1,0 +1,6 @@
+round,date,job,change,baseline_solver_sec,optimized_solver_sec,baseline_fresh_sec,optimized_fresh_sec,median_paired_reduction_pct,pairs_won
+R1,2026-10-14,3646982,panel/cone/IO optimizations (5711b8f),7.615,5.351,8.442,6.121,,
+R2,2026-10-15,3674333,setup configuration (3364c28),5.156,4.349,5.899,5.114,,
+R3,2026-10-16,,scatter reuse + direct packing + warp factors,,,5.221,4.982,4.47,5/5
+R4,2026-10-16,,small-transform reuse + parallel Schur target runs,,,5.021,4.741,5.47,5/5
+R5,2026-10-16,3957733,flat separator graph + packed maps + column task lists + device sort,,,4.649,4.480,3.69,5/5

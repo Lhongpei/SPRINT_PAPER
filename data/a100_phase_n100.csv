@@ -1,0 +1,9 @@
+phase,parent,baseline_ms,combined_ms
+schur_backend_state_setup,,1480,1373
+schur_setup,schur_backend_state_setup,645.733,550.736
+stage_setup,schur_backend_state_setup,830.452,819.080
+newton_loop_24_iterations,,1809.8,1747.8
+local_factorization,newton_loop_24_iterations,685.004,617.778
+forward_solves,newton_loop_24_iterations,301.977,302.960
+recovery,newton_loop_24_iterations,136.662,137.248
+reduced_dense_factor_and_solves,newton_loop_24_iterations,21.422,21.508
