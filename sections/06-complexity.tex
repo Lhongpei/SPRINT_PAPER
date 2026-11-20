@@ -1,280 +1,263 @@
 \section{Complexity of hierarchical elimination}\label{sec:complexity}
 
+We now bound the cost of the certified hierarchy. The bounds are stated in terms
+of the elimination fronts that actually occur, so they predict the implementation
+more closely than the worst-case width of \cref{thm:interval}, and they reduce to
+linear work in the horizon under uniform local bounds.
+
 \subsection{Local elimination fronts}\label{sec:local}
 
-Fix an elimination order inside each $I_j$, with $\partial I_j$ ordered after
-the interior. For an interior pivot $v$, let $d_v$ be its number of later
-neighbors, interior or retained, in the filled local augmented graph. Define
+Fix an elimination order inside each $I_j$, with $\partial I_j$ ordered last. For
+an interior pivot $v$, let $d_v$ be its number of later neighbors, interior or
+retained, in the filled local graph, and define
 \begin{equation}\label{eq:phi}
 \Phi_1=\sum_j\sum_{v\in I_j}(1+d_v),\qquad
 \Phi_2=\sum_j\sum_{v\in I_j}(1+d_v)^2,\qquad
 \mathcal B_2=\sum_jb_j^2.
 \end{equation}
-These quantities depend on the symbolic ordering, not on the numerical values
-at a particular iterate. If relaxed supernodes or pattern unions add structural
-entries, the padded pattern must be used.
+These quantities depend only on the symbolic ordering; when relaxed supernodes or
+pattern unions add structural zeros, they are evaluated on the padded pattern.
 
 \begin{lemma}[partial factorization cost]\label{lem:local}
 All local factors and their retained-front updates can be formed with
 \begin{equation}\label{eq:local-cost}
-W_{\mathrm{local}}=O(\Phi_2+\mathcal B_2),\qquad M_{\mathrm{local}}=O(\Phi_1+\mathcal B_2).
+W_{\mathrm{local}}=O(\Phi_2+\mathcal B_2),\qquad M_{\mathrm{local}}=O(\Phi_1+\mathcal B_2),
 \end{equation}
-With these factors, local condensation and interior recovery cost $O(\Phi_1)$
-per right-hand side.
+and local condensation and recovery then cost $O(\Phi_1)$ per right-hand side.
 \end{lemma}
 
 \begin{proof}
-A scalar pivot with $d_v$ later neighbors normalizes its column and applies a
-symmetric rank-one update to its later neighbors, at cost $O((1+d_v)^2)$, and
-stores $O(1+d_v)$ factor entries. Summing over interior pivots gives $\Phi_2$ and
-$\Phi_1$. Initializing, extracting and storing each retained front adds
-$O(b_j^2)$ work and memory. Forward elimination and backward recovery touch each
-stored factor entry a constant number of times per right-hand side.
+A pivot with $d_v$ later neighbors scales its column and applies a symmetric
+rank-one update to its later neighbors, at cost $O((1+d_v)^2)$, and stores
+$O(1+d_v)$ factor entries. Each retained front adds $O(b_j^2)$ work and memory.
+Forward elimination and recovery touch every stored entry a constant number of
+times per right-hand side.
 \end{proof}
 
-Let $w_j$ be the maximum number of later \emph{interior} neighbors when
-factoring $A_j$. Retained vertices are never local pivots and cannot create
-edges between interior vertices, so
+Let $w_j$ be the maximum number of later \emph{interior} neighbors when factoring
+$A_j$. Retained vertices are never pivots, so they create no edges among interior
+vertices, and
 \begin{equation}\label{eq:dv}
 d_v\le w_j+b_j\quad(v\in I_j),\qquad
 \Phi_2\le\sum_jn_j(1+w_j+b_j)^2,\qquad
 \Phi_1\le\sum_jn_j(1+w_j+b_j).
 \end{equation}
-The accumulated measure $\Phi_2$ can be much smaller than a bound that charges
-the largest front to every pivot: a few large fronts need not determine the cost
-of every variable inside a stage.
+$\Phi_2$ is usually far below the bound that charges the largest front to every
+pivot, because most equations of a stage sit in small local substructures.
 
 \subsection{The reduced chain with a global border}
 
-Partition the reduced system as
+Partition the reduced matrix of \cref{thm:chain} as
 \begin{equation}\label{eq:reduced-block}
-S=\begin{bmatrix}T&Q\\Q^\top&C_B\end{bmatrix},
+S=\begin{bmatrix}T&S_{TB}\\S_{TB}^\top&S_{BB}\end{bmatrix},
 \end{equation}
-where $T$ is block tridiagonal with $K$ blocks of size at most $p$ and $C_B$ has
-order $g$; both $S$ and $T$ are SPD. We use block cyclic
-reduction~\cite{hockney1965fast,heller1976some} with a shrinking active set:
-each level eliminates alternating active blocks, and the solve visits the levels
-in reverse.
+where $T$ is block tridiagonal with $K$ blocks of order at most $p$ and $S_{BB}$
+has order $g$. MIST uses block cyclic reduction~\cite{hockney1965fast,heller1976some}
+with a shrinking active set: each level eliminates every other active block, and
+solves traverse the levels in reverse.
 
 \begin{lemma}[reduced solve]\label{lem:reduced}
-The system~\eqref{eq:reduced-block} can be factored and prepared with
+The system~\eqref{eq:reduced-block} can be factored with
 \begin{equation}\label{eq:reduced-cost}
 W_R=O(Kp^3+Kp^2g+Kpg^2+g^3),\qquad M_R=O(Kp^2+Kpg+g^2),
 \end{equation}
-and every further right-hand side costs $O(Kp^2+Kpg+g^2)$.
+and each right-hand side then costs $O(Kp^2+Kpg+g^2)$.
 \end{lemma}
 
 \begin{proof}
-An active block has at most two active neighbors, so its elimination costs
-$O(p^3)$ for the dense factorization, triangular solves and neighbor updates.
-The active set roughly halves at each level; there are $K-1$ eliminated blocks
-and one root, giving $O(Kp^3)$ work, $O(Kp^2)$ storage and $O(Kp^2)$ per solve.
-Next, $Z=T^{-1}Q$ needs $g$ chain solves, at cost $O(Kp^2g)$ and storage $O(Kpg)$.
-Forming $C_B-Q^\top Z$ costs $O(Kpg^2)$, and factoring it costs $O(g^3)$; the
-accumulation can be streamed, so no per-block $g\times g$ update needs to be
-stored. A new right-hand side requires one chain solve, a border solve and a
-recovery update with $Z$.
+An active block has at most two active neighbors, so eliminating it costs
+$O(p^3)$. The active set halves at each level, so $K-1$ blocks are eliminated in
+total, giving $O(Kp^3)$ work and $O(Kp^2)$ storage. The border needs
+$Z=T^{-1}S_{TB}$, that is $g$ chain solves at cost $O(Kp^2g)$, the update
+$S_{BB}-S_{TB}^\top Z$ at cost $O(Kpg^2)$, and a dense factorization at cost
+$O(g^3)$. A right-hand side requires one chain solve, one border solve and one
+update with $Z$.
 \end{proof}
 
-Linear work depends on the shrinking active set. A parallel variant that updates
-every block at every level costs $O(Kp^3\log K)$ instead.
+The shrinking active set matters: a variant that updates every block at every
+level costs $O(Kp^3\log K)$.
 
 \subsection{Main complexity theorem}
 
 \begin{theorem}[hierarchical numerical elimination]\label{thm:main}
-Suppose $H_\delta\succ0$, the retained partition satisfies
-\cref{def:certificate}, and the local orders are fixed. An exact hierarchical
-solver attains
+Suppose $H_\delta\succ0$, the retained partition is certified
+(\cref{def:certificate}), and the local orders are fixed. Exact hierarchical
+elimination factors $H_\delta$ and solves with $q_{\mathrm{rhs}}$ right-hand sides
+at cost
 \begin{align}
 W_{\mathrm{factor}}&=O\bigl(\Phi_2+\mathcal B_2+Kp^3+Kp^2g+Kpg^2+g^3\bigr),\label{eq:wfactor}\\
 M_{\mathrm{numeric}}&=O\bigl(\Phi_1+\mathcal B_2+Kp^2+Kpg+g^2\bigr),\label{eq:mnum}\\
-W_{\mathrm{rhs}}&=O\bigl(q_{\mathrm{rhs}}\,(\Phi_1+Kp^2+Kpg+g^2)\bigr).\label{eq:wrhs}
+W_{\mathrm{rhs}}&=O\bigl(q_{\mathrm{rhs}}\,(\Phi_1+Kp^2+Kpg+g^2)+q_{\mathrm{rhs}}\,m\bigr).\label{eq:wrhs}
 \end{align}
-If the Sherman--Morrison preparation~\eqref{eq:sm} is not among the right-hand
-sides, add one base solve and $O(m)$ vector work. The case $K=0$ is a dense
-solve on $B$.
 \end{theorem}
 
 \begin{proof}
-\Cref{lem:local} bounds all interior partial factorizations. Accumulating their
-fronts into the reduced pattern costs $O(\mathcal B_2)$. \Cref{thm:chain} gives
-the structure and positive definiteness needed by \cref{lem:reduced}. Adding the
-local and reduced costs gives~\eqref{eq:wfactor} and~\eqref{eq:mnum}, and summing
-forward condensation, reduced solves and recovery over the right-hand sides
-gives~\eqref{eq:wrhs}.
+\Cref{lem:local} bounds the interior factorizations, and adding their fronts into
+the reduced pattern costs $O(\mathcal B_2)$. \Cref{thm:chain} provides the
+structure required by \cref{lem:reduced}. Each right-hand side needs a forward
+condensation, a reduced solve, a recovery, and the $O(m)$ Sherman--Morrison
+update~\eqref{eq:sm}.
 \end{proof}
 
 \begin{corollary}[linear complexity in the horizon]\label{cor:linear}
-If in addition $\sum_jn_j=O(N)$, $K=O(N)$, and $w_j,b_j,p,g$ are bounded
-uniformly in $N$, then for fixed $q_{\mathrm{rhs}}$ the numerical factorization,
-its storage and the subsequent solves cost $O(N)$.
+If in addition $\sum_jn_j=O(N)$, $K=O(N)$, and $w_j,b_j,p,g$ are bounded uniformly
+in $N$, then factorization, storage and solves cost $O(N)$.
 \end{corollary}
 
 \begin{proof}
-By~\eqref{eq:dv}, $\Phi_1,\Phi_2=O(N)$. Every component has at least one vertex,
-so $J=O(N)$ and $\mathcal B_2=O(N)$. All remaining terms are linear in $K$.
+By~\eqref{eq:dv}, $\Phi_1,\Phi_2=O(N)$. Each component has at least one vertex, so
+$J=O(N)$ and $\mathcal B_2=O(N)$; the remaining terms are linear in $K$, and
+$m=O(N)$ under \cref{ass:support}.
 \end{proof}
 
-The certificate restricts which groups a component touches; it does not bound
-the component size. A fixed coarsening span $h$ and a bounded number of rows per
-stage supply that bound, provided each component is checked to lie within a
-bounded number of stages. Substituting the construction of \cref{thm:spaced}
-gives a bound purely in terms of the model parameters.
+The certificate controls which groups a component touches, not how large a
+component is; the bounded component sizes in \cref{cor:linear} come from the
+coarsening span. Substituting the construction of \cref{thm:spaced} expresses
+the cost through model parameters alone.
 
 \begin{corollary}[explicit SOS parameter bound]\label{cor:explicit}
-Under \cref{thm:spaced},
+For the hierarchy of \cref{thm:spaced},
 \begin{align}
-W_{\mathrm{factor}}&=O\Bigl(Nq(hq+2P+g)^2+\tfrac Nh\,(P^3+P^2g+Pg^2)+g^3\Bigr),\label{eq:explicit-w}\\
-M_{\mathrm{numeric}}&=O\Bigl(Nq\bigl[hq+2P+g+(2P+g)^2\bigr]+\tfrac Nh\,(P^2+Pg)+g^2\Bigr).\label{eq:explicit-m}
+W_{\mathrm{factor}}&=O\Bigl(Nq(\bar\ell q+2P+g)^2+\tfrac{N}{\bar\ell}\,(P^3+P^2g+Pg^2)+g^3\Bigr),\label{eq:explicit-w}\\
+M_{\mathrm{numeric}}&=O\Bigl(Nq\bigl[\bar\ell q+(2P+g)^2\bigr]+\tfrac{N}{\bar\ell}\,(P^2+Pg)+g^2\Bigr).\label{eq:explicit-m}
 \end{align}
 \end{corollary}
 
 \begin{proof}
-There are at most $Nq$ interior vertices and $w_j\le n_j-1\le hq-1$. Apply
+There are at most $Nq$ interior vertices and $w_j\le n_j-1\le\bar\ell q-1$. Apply
 \eqref{eq:dv}, $b_j\le2P+g$ and $J\le Nq$ to the local terms of \cref{thm:main},
-and $K\le N/h$, $p\le P$ to the reduced terms.
+and $K\le N/\bar\ell$, $p\le P$ to the reduced terms.
 \end{proof}
 
-With $q\le\binom{D+2r}{2r}$, \cref{cor:explicit} depends only on the horizon,
-the stage and shared variable counts, the relaxation order, the slab span and
-the border. It is deliberately conservative, and the front-dependent
-\cref{thm:main} is the better predictor in practice. Both make clear that linear
-scaling in $N$ comes with a steep dependence on~$r$.
+With $q\le\binom{n_{\mathrm{var}}+2r}{2r}$, \cref{cor:explicit} depends only on
+the horizon, the per-stage and shared variable counts, the relaxation order, the
+slab span and the border. It shows that linear scaling in $N$ comes with a steep
+dependence on $r$, and it is conservative; \cref{thm:main} is the predictor to use
+for a given instance.
 
 \subsection{Finer accounting}
 
 \paragraph{Unequal interfaces.}
-Let $\mathcal P$ be the reduced elimination events, including the root. For
-event $e$, let $p_e$ be its pivot-block size and $\beta_e$ the total size of its
-(at most two) later neighboring chain blocks. Counting block operations gives
+Let $\mathcal P$ be the elimination events of the reduced chain. For event $e$, let
+$p_e$ be its pivot-block order and $\beta_e$ the total order of its (at most two)
+later neighboring blocks. Counting block operations gives
 \begin{equation}\label{eq:ragged}
 W_T=O\Bigl(\sum_{e\in\mathcal P}\bigl[p_e^3+p_e^2\beta_e+p_e\beta_e^2\bigr]\Bigr),\qquad
 M_T=O\Bigl(\sum_{e\in\mathcal P}\bigl[p_e^2+p_e\beta_e\bigr]\Bigr),
 \end{equation}
-with $O(M_T)$ work per solve. Since $\beta_e\le2p$ and $|\mathcal P|=K$,
-\eqref{eq:ragged} implies the chain terms of \cref{lem:reduced} and quantifies
-the overhead of padding every interface to the largest width.
+with $O(M_T)$ work per solve. Since $\beta_e\le2p$ and $|\mathcal P|=K$, this
+implies the chain terms of \cref{lem:reduced} and quantifies the cost of padding
+every interface to the largest one.
 
 \paragraph{The executed supernodal plan.}
-For a direct match with the GPU backend, let supernode $s$ have pivot width
-$\omega_s$ and panel height $h_s$, and let $\mathcal E_{\mathrm{upd}}$ be the
-scheduled source-to-target panel updates. The retained front is an update
-target but never a pivot. One numerical instance of a padded plan costs
+On the GPU, each interior is factored by a supernodal plan. Let supernode $\phi$
+have pivot width $\omega_\phi$ and panel height $m_\phi$, and let
+$\mathcal E_{\mathrm{upd}}$ be the scheduled panel updates $(\phi,\psi)$. One
+numerical instance costs
 \begin{equation}\label{eq:panel}
-W_{\mathrm{panel}}=O\Bigl[\sum_{s\in\mathrm{pivot}}\bigl(\omega_s^3+(h_s-\omega_s)\omega_s^2\bigr)
-+\sum_{(s,t)\in\mathcal E_{\mathrm{upd}}}\omega_s\omega_th_t\Bigr],
+W_{\mathrm{panel}}=O\Bigl[\sum_{\phi}\bigl(\omega_\phi^3+(m_\phi-\omega_\phi)\omega_\phi^2\bigr)
++\sum_{(\phi,\psi)\in\mathcal E_{\mathrm{upd}}}\omega_\phi\omega_\psi m_\psi\Bigr],
 \end{equation}
-corresponding to POTRF, TRSM and panel updates, with panel storage
-$O(\sum_sh_s\omega_s)$. If one symbolic template serves several components,
-the numerical cost is multiplied by the number of instances: reusing a template
-saves symbolic work but not factorization work.
+for the POTRF, TRSM and update kernels, with panel storage
+$O(\sum_\phi m_\phi\omega_\phi)$. Components that share a symbolic plan share this
+analysis but not the arithmetic, which is multiplied by the number of instances.
 
 \subsection{Parallel depth}
 
-Let $D_{\mathrm{loc}}$ be the maximum dependency depth of the local schedules.
-
 \begin{proposition}[chain elimination depth]\label{prop:depth}
-Cyclic reduction has $O(\log(K+1))$ forward and backward levels. Executing each
-block operation sequentially gives factorization depth $O(p^3\log(K+1))$ and
-solve depth $O(p^2\log(K+1))$.
+Cyclic reduction has $O(\log(K+1))$ levels in each direction. With each block
+operation executed sequentially, the factorization depth is $O(p^3\log(K+1))$ and
+the solve depth is $O(p^2\log(K+1))$.
 \end{proposition}
 
 \begin{proof}
-Each level halves the active set approximately. Blocks eliminated in one level
-are nonadjacent and compute their updates independently; each surviving block
-receives at most two contributions, combined in a fixed order. Recovery
-reverses the levels.
+Blocks eliminated in the same level are nonadjacent and independent, and each
+surviving block receives at most two contributions. The active set halves at every
+level, and recovery reverses the levels.
 \end{proof}
 
 \begin{corollary}[linear work and logarithmic depth]\label{cor:depth}
-Suppose $p,g$, the component sizes and the local arithmetic costs are bounded
+Suppose $p,g$ and the size and cost of each interior component are bounded
 uniformly, and $J,K=O(N)$. If independent components run in parallel and
-contributions to a common retained entry are combined by balanced reductions,
-there is an elimination schedule with
+contributions to a common retained entry are combined by balanced reductions, there
+is an elimination schedule with
 \begin{equation}\label{eq:depth}
-W=O(N),\qquad M=O(N),\qquad D=O(\log(N+1)).
+W=O(N),\qquad M=O(N),\qquad \text{depth}=O(\log(N+1)).
 \end{equation}
 \end{corollary}
 
 \begin{proof}
-Local components have constant depth. Combining their contributions has depth
+Each component has constant depth, combining their contributions has depth
 $O(\log(J+1))$, the chain has depth $O(\log(K+1))$ by \cref{prop:depth}, and the
-border needs a bounded number of chain solves and reductions. \Cref{thm:main}
-supplies the work and storage bounds.
+border needs a bounded number of chain solves. \Cref{thm:main} gives the work and
+storage.
 \end{proof}
 
-With greedy scheduling on $P_{\mathrm{proc}}$ processors, the ideal time is
-$O(W/P_{\mathrm{proc}}+D)$; bandwidth, synchronization, kernel launches and
-occupancy are not modeled. Bounded front width alone does not imply logarithmic
-depth, since a component can contain a serial chain of $\Theta(N)$ pivots.
+On $P_{\mathrm{proc}}$ processors, greedy scheduling then runs in
+$O(W/P_{\mathrm{proc}}+\log N)$ ideal time. This is the property that makes the
+hierarchy suited to GPUs: the interior work is a large batch of independent dense
+kernels, and only the logarithmic-depth chain is sequential.
 
 \subsection{Cost of one interior-point iteration}\label{sec:iter-cost}
 
-For PSD block $c$, let $a_{ci}$ be the number of stored lower-triangular
-coordinates of $A_i^{(c)}$ and $z_c=\sum_ia_{ci}$.
+Assembling $H_\delta$ is the other major cost. For Gram block $c$, let $a_{ci}$ be
+the number of stored coordinates of $A_i^{(c)}$ and $\zeta_c=\sum_ia_{ci}$.
 
 \begin{proposition}[selector assembly]\label{prop:selector}
-Given $W_c$ and precomputed scatter maps, evaluating all incident row pairs of
-block $c$ by coordinate pairing requires
+Given $W_c$ and precomputed scatter maps, all entries~\eqref{eq:schur} contributed
+by block $c$ can be evaluated with
 \begin{equation}\label{eq:selector}
-P_c=\sum_{i\le j}a_{ci}a_{cj}=\tfrac12\Bigl(z_c^2+\sum_ia_{ci}^2\Bigr)
+\sum_{i\le j}a_{ci}a_{cj}=\tfrac12\Bigl(\zeta_c^2+\sum_ia_{ci}^2\Bigr)
 \end{equation}
-coordinate-pair evaluations, hence $\Theta(z_c^2)$ operations for a nonempty block.
+coordinate-pair products, that is $\Theta(\zeta_c^2)$ operations.
 \end{proposition}
 
 \begin{proof}
-Expanding the trace in~\eqref{eq:schur} over two coefficient coordinates uses a
-constant number of entries of $W_c$. Expanding $z_c^2$ counts off-diagonal row
-pairs twice and diagonal pairs once, which gives the identity, and
-$\sum_ia_{ci}^2\le z_c^2$ gives the bounds.
+Expanding the trace over two coefficient coordinates uses a constant number of
+entries of $W_c$. Expanding $\zeta_c^2$ counts off-diagonal pairs twice and
+diagonal pairs once, and $\sum_ia_{ci}^2\le\zeta_c^2$.
 \end{proof}
 
-For a monomial Gram map, each symmetric coordinate belongs to one row, so
-$z_c\le k_c(k_c+1)/2$; a localizing polynomial with $\sigma_c$ terms gives
-$z_c\le\sigma_ck_c(k_c+1)/2$ and work $O(\sigma_c^2k_c^4)$. The generic dense
-path instead costs $O(q_ck_c^3)$ in matrix products per block, so neither path
-dominates for all patterns, and the implementation selects per block. With
-$t_a$ the number of rows touching free variable $a$, one iteration costs
+For a moment block, each coordinate belongs to one equation, so
+$\zeta_c\le k_c(k_c+1)/2$, and a localizing block with a $\sigma_c$-term polynomial
+has $\zeta_c\le\sigma_ck_c(k_c+1)/2$. The dense alternative costs $O(q_ck_c^3)$ for
+the $q_c$ equations touching block $c$, so MIST chooses per block. With $t_a$ the
+number of equations touching free variable $a$, one iteration costs
 \begin{equation}\label{eq:witer}
-W_{\mathrm{iter}}=O\Bigl(\sum_ck_c^3+\sum_cz_c^2+\sum_at_a^2+\nnz(\mathcal A,E)+\nnz(H_\delta)
-+W_{\mathrm{factor}}+W_{\mathrm{rhs}}+m+n_f\Bigr),
+W_{\mathrm{iter}}=O\Bigl(\sum_ck_c^3+\sum_c\zeta_c^2+\sum_at_a^2+\nnz(\mathcal A,E)
++W_{\mathrm{factor}}+W_{\mathrm{rhs}}\Bigr),
 \end{equation}
-assuming a bounded number of refinement steps, rejected directions and
-refactorizations per accepted iteration. Under the conditions of
-\cref{cor:linear} and bounded resources per stage, this is $O(N)$.
+covering the cone scalings, the assembly of $H_{\mathrm{psd}}$, $\eta^2EE^\top$ and
+$u$, and the hierarchical factorization and solves. Under the conditions of
+\cref{cor:linear} this is $O(N)$ per iteration.
 
 \paragraph{Outer iterations.}
-The total work is $W_{\mathrm{setup}}+\sum_{k=1}^{L}W_{\mathrm{iter},k}$ over
-$L$ outer iterations. A short-step path-following method needs
-$O(\sqrt\nu\log(1/\epsilon))$ iterations for barrier parameter $\nu$; with
-$\nu=O(N)$ this gives $O(N^{3/2}\log(1/\epsilon))$ work beyond
-setup~\cite{zhang2020clique}. Our implementation uses a homogeneous self-dual
-Mehrotra-type method with safeguards, and we do not claim that it satisfies the
-assumptions of that theory. In our experiments the iteration count grows slowly
-(23, 24 and 24--25 iterations for $N=10,30,100$ on PushT; \cref{sec:experiments}).
+Total work is setup plus the sum of $W_{\mathrm{iter}}$ over the outer iterations.
+Short-step path-following theory gives $O(\sqrt\nu\log(1/\epsilon))$ iterations
+for barrier parameter $\nu=O(N)$~\cite{zhang2020clique}; practical Mehrotra-type
+methods such as ours take far fewer, and on PushT the count grows from 23 to 25
+between $N=10$ and $N=100$ (\cref{sec:experiments}).
 
 \subsection{Relation to general sparse Cholesky}
 
 \begin{proposition}[representation by an ordering]\label{prop:ordering}
-In exact arithmetic, the interior eliminations, the reduced-chain eliminations
-and the final border factorization correspond to a permutation under which
-ordinary sparse Cholesky performs the same elimination.
+In exact arithmetic, the interior eliminations, the chain eliminations and the
+border factorization are the elimination of $H_\delta$ under a fixed permutation by
+ordinary sparse Cholesky.
 \end{proposition}
 
 \begin{proof}
 List the interior pivots first, respecting each component's order; components
-share no interior edges, so any interleaving is admissible. Then list the chain
-pivots by elimination level, expanding blocks into scalar pivots, and finally the
-border. By \cref{prop:assoc}, block and scalar elimination in this order produce
-the same Schur complements, and every pivot exists because the matrix is SPD.
+share no interior edges, so any interleaving is valid. Then list the chain pivots
+by elimination level, expanding blocks into scalars, and finally the border. By
+\cref{prop:assoc}, block and scalar elimination in this order produce the same
+Schur complements.
 \end{proof}
 
-A general supernodal or multifrontal solver given this ordering and a
-comparable blocking can therefore match the arithmetic bound, and we do not
-claim that general sparse Cholesky is asymptotically slower on this matrix
-family. The practical question is how to obtain a good ordering and execution
-plan from the SOS model. The hierarchy answers it in four ways. Temporal
-coefficient supports propose interfaces, the certificate controls fill after
-local elimination, pruning and coarsening shrink the reduced system, and
-repeated component patterns enable batching. \Cref{sec:cudss} measures the
-resulting gain against a general GPU factorization of the same operator.
+The hierarchy is therefore not a new factorization, and a general supernodal
+solver given the same ordering and blocking can match its arithmetic. What the SOS
+model contributes is the ordering and the execution plan: coefficient supports
+propose the interfaces, the certificate guarantees the chain structure, pruning
+and coarsening shrink the reduced system, and identical stages are batched.
+\Cref{sec:cudss} measures the resulting gain over a general GPU factorization of
+the same matrix.

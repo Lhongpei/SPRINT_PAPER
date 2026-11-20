@@ -1,107 +1,143 @@
 \section{Problem setting}\label{sec:setting}
 
-\subsection{Trajectory problems and SOS certificates}
+This section fixes the problem class, the SDP that MIST solves, and the linear
+system that dominates each interior-point iteration. The rest of the paper is
+about solving that linear system quickly and exactly.
 
-The underlying control problem has stage states $x_t$, controls $u_t$, and
-possibly contact forces or lifted variables $\lambda_t$:
-\begin{equation}\label{eq:ocp}
-\begin{aligned}
-\min_{x,u,\lambda}\quad &\phi(x_N)+\sum_{t=0}^{N-1}\ell_t(x_t,u_t,\lambda_t)\\
-\text{subject to}\quad &h_t(x_t,u_t,\lambda_t,x_{t+1})=0,\qquad
-g_t(x_t,u_t,\lambda_t,x_{t+1})\ge0,\qquad t=0,\dots,N-1.
-\end{aligned}
+\subsection{Multistage polynomial optimization and its SOS relaxation}
+
+We consider polynomial problems whose variables are organized in stages
+$\xi_0,\xi_1,\ldots,\xi_N$ and whose objective and constraints couple only
+nearby stages:
+\begin{equation}\label{eq:pop}
+\min_{\xi}\ \sum_{t=0}^{N-1}f_t(\xi_t,\xi_{t+1})
+\quad\text{s.t.}\quad
+g_{t,a}(\xi_t,\xi_{t+1})\ge0,\quad h_{t,b}(\xi_t,\xi_{t+1})=0,\qquad t=0,\ldots,N-1,
 \end{equation}
-After modeling or lifting, the objective and constraints are polynomial. For
-example, contact complementarity becomes $\lambda\ge0$, $d\ge0$ and $\lambda d=0$.
-For a polynomial problem $\min\{f(\xi):g_a(\xi)\ge0,\ h_b(\xi)=0\}$, a lower
-bound $\gamma$ is certified by an identity
+with polynomial $f_t$, $g_{t,a}$ and $h_{t,b}$. Coupling across a window of
+$\ell>2$ stages and a bounded number of global variables are allowed; both enter
+the analysis through the parameters of \cref{ass:support}. In robot trajectory
+optimization, $\xi_t$ collects the state, control and contact variables of time
+step $t$, the equalities encode dynamics, and contact enters through polynomial
+complementarity, for example $\lambda\ge0$, $d\ge0$ and $\lambda d=0$, or through
+binary mode indicators $\lambda_j^2=\lambda_j$.
+
+Write~\eqref{eq:pop} as $\min\{f(\xi):g_a(\xi)\ge0,\ h_b(\xi)=0\}$. A value $\gamma$
+is a certified lower bound if
 \begin{equation}\label{eq:sos}
-f-\gamma=\sum_c\sigma_{c,0}+\sum_{c,a}\sigma_{c,a}\,g_a+\sum_b\tau_b\,h_b,
+f-\gamma=\sum_c\Bigl(\sigma_{c,0}+\sum_{a}\sigma_{c,a}\,g_a\Bigr)+\sum_b\tau_b\,h_b,
 \qquad \sigma_{c,a}=v_{c,a}^{\top}Q_{c,a}v_{c,a},\quad Q_{c,a}\succeq0,
 \end{equation}
-where $v_{c,a}$ are vectors of monomials and $\tau_b$ are polynomial
-multipliers. Matching the coefficients of both sides of~\eqref{eq:sos}
-gives one affine constraint per monomial.
+where $c$ ranges over the cliques of a correlative sparsity
+pattern~\cite{waki2006sums,lasserre2006convergent}, $v_{c,a}$ are monomial bases
+(possibly pruned by term sparsity~\cite{wang2021tssos,wang2022cstssos}), and
+$\tau_b$ are polynomial multipliers. Matching the coefficients of both sides
+of~\eqref{eq:sos} gives one affine equation per monomial.
 
 \begin{example}[coefficient matching]\label{ex:matching}
-For $p(x)=p_0+p_1x+p_2x^2$ and $v=(1,x)$, the identity $p=v^\top Qv$ with
-$Q\in\Sym^2_+$ gives the three rows $Q_{11}=p_0$, $2Q_{12}=p_1$ and
-$Q_{22}=p_2$, one for each monomial $1,x,x^2$. In a trajectory relaxation, a
-monomial in the variables of stage $t$ appears only in the rows of the blocks
-attached to stages near~$t$. This locality is what we exploit.
+For $p(\xi)=p_0+p_1\xi+p_2\xi^2$ and $v=(1,\xi)$, the identity $p=v^\top Qv$ with
+$Q\in\Sym^2_+$ gives three equations, one per monomial $1,\xi,\xi^2$:
+$Q_{11}=p_0$, $2Q_{12}=p_1$ and $Q_{22}=p_2$. In a multistage relaxation, a
+monomial in the variables of stage $t$ occurs only in the equations of Gram
+blocks attached to stages near $t$. This locality is what we exploit.
 \end{example}
 
-The relaxation bound, together with the cost of a recovered feasible trajectory,
-gives an optimality-gap estimate for~\eqref{eq:ocp}. Tightness and extraction
-require conditions that are separate from the linear-algebra results of this
-paper.
+The lower bound from~\eqref{eq:sos} and the cost of a feasible point recovered
+from the relaxation bracket the optimal value of~\eqref{eq:pop}. Whether the
+relaxation is tight is a property of the model; the results below concern the cost
+of solving a fixed relaxation.
 
-\subsection{The fixed finite SDP and its Newton system}
+\subsection{The SDP and the interior-point Newton system}
 
-Fix the horizon $N$, the relaxation order $r$, the correlative sparsity
-decomposition and the term-sparsity rules. The resulting finite SDP is
+Fixing the relaxation order $r$ and the sparsity rules gives the SDP
 \begin{equation}\label{eq:sdp}
-\min_{X_1,\ldots,X_C,\,z}\ \sum_{c=1}^{C}\langle C_c,X_c\rangle+c_z^\top z
+\min_{X,\,z}\ \sum_{c=1}^{C}\langle C_c,X_c\rangle+c_z^\top z
 \quad\text{s.t.}\quad
-\sum_{c=1}^{C}\mathcal A_c(X_c)+Ez=b,\qquad X_c\in\Sym_+^{k_c},\quad z\in\R^{n_f},
+\sum_{c=1}^{C}\mathcal A_c(X_c)+Ez=b,\qquad X_c\in\Sym_+^{k_c},\quad z\in\R^{n_f}.
 \end{equation}
-with $m$ equality rows, PSD blocks of order $k_c$, and $n_f$ free variables.
-The dimensions $N$, $m$ and $\sum_ck_c$ are distinct throughout. At an IPM
-iterate, the PSD contribution to the Schur matrix is
-\begin{equation}\label{eq:schur}
-(H_{\mathrm{psd}})_{ij}=\sum_{c=1}^{C}\tr\bigl(A_i^{(c)}W_cA_j^{(c)}W_c\bigr),
-\qquad W_c\succ0,
-\end{equation}
-where $W_c$ is the symmetric positive definite scaling matrix of block $c$
-(for example, the Nesterov--Todd scaling~\cite{nesterov1997self}).
-The free-variable representation used by our implementation adds a sparse term
-and a rank-one term, so we write the regularized operator as
-\begin{equation}\label{eq:operator}
-\Hfull=H_\delta+uu^\top,\qquad H_\delta=H_0+\delta I\succ0,
-\end{equation}
-where $H_0$ contains the PSD and sparse free-variable contributions and $u=0$
-when no rank-one term is present. Our graph analysis concerns $H_\delta$;
-the outer product $uu^\top$ is never expanded into the graph and is handled by
-the Sherman--Morrison formula (\cref{sec:rankone}).
+Each of the $m$ equations is a coefficient-matching equation for one monomial;
+$X_c$ are the Gram matrices, of order $k_c$, and $z$ collects the free variables
+(the bound $\gamma$ and the coefficients of the multipliers $\tau_b$). We write
+$\mathcal A_c(X_c)=(\langle A_i^{(c)},X_c\rangle)_{i=1}^m$.
 
-All exactness statements below refer to the linear system for a fixed $\delta$.
-They do not remove regularization error, and they do not imply that the finite
-relaxation solves the nonconvex problem~\eqref{eq:ocp}. A scalar shift is used
-for notation only; every result extends to a diagonal regularization matrix for
-which $H_\delta$ is positive definite.
+MIST embeds the free variables in a second-order cone: it adds a scalar $t$ with
+zero cost that appears in no equation, and requires $(t,z)\in\mathcal Q^{n_f+1}$.
+Every $z$ can be completed by a large enough $t$, so the problem is unchanged, but
+all variables now lie in symmetric cones. MIST then applies a primal--dual
+interior-point method to the homogeneous self-dual
+embedding~\cite{ye1994homogeneous} with Nesterov--Todd
+scaling~\cite{nesterov1997self,todd1998nesterov} and Mehrotra
+predictor--corrector steps~\cite{mehrotra1992implementation}. Eliminating the
+primal and dual directions leaves the normal equations $\mathscr H\,\Delta y=f$ in
+the equation multipliers, with
+\begin{equation}\label{eq:normal}
+\mathscr H=\underbrace{\sum_{c=1}^{C}\mathcal A_c\,\mathcal W_c\,\mathcal A_c^{*}}_{H_{\mathrm{psd}}}
++\widehat E\,W_q^2\,\widehat E^{\top},
+\qquad \mathcal W_c(X)=W_cXW_c,\quad \widehat E=[\,0\ \ E\,],
+\end{equation}
+where $W_c\succ0$ is the scaling of Gram block $c$ and $W_q$ that of the
+second-order cone. Entrywise, the first term is
+\begin{equation}\label{eq:schur}
+(H_{\mathrm{psd}})_{ij}=\sum_{c=1}^{C}\tr\bigl(A_i^{(c)}W_cA_j^{(c)}W_c\bigr).
+\end{equation}
+The Nesterov--Todd scaling of a second-order cone has the form
+$W_q^2=\eta^2(2\bar w\bar w^\top-J)$ with $\eta>0$, $J=\operatorname{diag}(1,-I)$
+and $\bar w^\top J\bar w=1$. Because $t$ appears in no equation, the cone's
+contribution splits into a sparse part and a single rank-one term:
+\begin{equation}\label{eq:operator}
+\mathscr H=H_0+uu^\top,\qquad H_0=H_{\mathrm{psd}}+\eta^2EE^\top,\qquad
+u=\sqrt2\,\eta\,E\bar w_z,
+\end{equation}
+where $\bar w_z$ is the trailing part of $\bar w$. The matrix $H_0$ couples two
+equations only if they share a Gram block or a free variable. The rank-one term is
+dense, which is why it is kept out of every sparsity argument and handled by the
+Sherman--Morrison formula (\cref{sec:rankone}). MIST factors a regularized base
+\begin{equation}\label{eq:shift}
+H_\delta=H_0+\delta I\succ0,\qquad \Hfull=H_\delta+uu^\top,
+\end{equation}
+with a small shift $\delta\ge0$ chosen by the outer method; every result below
+holds verbatim for a diagonal shift.
+
+\paragraph{The linear-algebra task.}
+Each IPM iteration assembles $H_\delta$ and $u$, factors $H_\delta$ once, and
+solves with a small number $q_{\mathrm{rhs}}$ of right-hand sides: the
+homogeneous-embedding column, the predictor, the corrector, and the
+Sherman--Morrison column $H_\delta^{-1}u$, so $q_{\mathrm{rhs}}=4$. The corrector
+depends on the predictor, so the solves are sequential. Assembling and factoring
+$H_\delta$ dominates the cost of an iteration;
+\cref{sec:structure,sec:hierarchy,sec:complexity} show how to factor it with work
+linear in the horizon, and \cref{sec:algorithm} describes the GPU implementation.
+All exactness statements concern this linear system for a fixed shift $\delta$.
 
 \subsection{Notation and computational model}
 
 \Cref{tab:notation} collects the main symbols. We count scalar arithmetic
-operations under classical dense kernels and sparse elimination, and we measure
-storage in scalar words. Numerical bounds assume that a valid symbolic plan and
-its index maps are available. Symbolic analysis, model construction, bit
-complexity, communication and kernel launches are accounted for separately. A
-bound stated as linear in $N$ always requires the indicated local parameters to
-remain bounded as $N$ grows.
+operations and measure storage in scalar words. Numerical bounds assume that the
+symbolic plan and its index maps are available; symbolic analysis is accounted for
+separately. A bound called linear in $N$ requires the listed local parameters to
+stay bounded as $N$ grows.
 
 \begin{table}[htbp]
 \centering
 \caption{Main notation.}\label{tab:notation}
 \small
-\begin{tabular}{@{}ll@{}}
+\begin{tabular}{@{}lp{0.74\linewidth}@{}}
 \toprule
 Symbol & Meaning\\
 \midrule
 $N,\ r$ & horizon and relaxation order\\
-$m,\ n_f$ & number of equality rows and free variables\\
-$\ell,\ q$ & maximum temporal span of a row; maximum number of rows first appearing at one stage\\
-$D,\ s$ & variables used per stage; variables shared across a cut\\
-$k_c,\ q_c,\ z_c$ & order of PSD block $c$, its number of incident rows, its stored coefficient coordinates\\
-$B,\ g$ & global border rows and $g=|B|$\\
-$R_1,\ldots,R_K$ & ordered, disjoint retained interface groups; $p=\max_k|R_k|$\\
+$m,\ n_f$ & number of equations and of free variables\\
+$\mathcal G=(V,\mathcal E)$ & resource graph on the $m$ equations (\cref{def:resource})\\
+$\ell,\ q$ & maximum temporal span of an equation; maximum number of equations first appearing at a stage\\
+$n_{\mathrm{var}},\ s$ & variables used by one stage; variables shared across a temporal cut\\
 $P$ & monomial interface bound $\binom{s+2r}{2r}$\\
+$B,\ g$ & global border equations and $g=|B|$\\
+$R_1,\ldots,R_K$ & ordered, disjoint retained interface groups; $p=\max_k|R_k|$\\
 $I_j,\ n_j$ & interior connected component and its size\\
 $\partial I_j,\ b_j$ & retained neighbors of $I_j$ and their number\\
 $d_v,\ w_j$ & later neighbors of interior pivot $v$; maximum later interior neighbors in $I_j$\\
 $\Phi_1,\ \Phi_2,\ \mathcal B_2$ & accumulated local-front measures and $\sum_jb_j^2$ (\cref{sec:local})\\
-$h$ & stage span of a coarsening slab\\
-$q_{\mathrm{rhs}}$ & number of right-hand sides per numerical factorization\\
+$q_{\mathrm{rhs}}$ & right-hand sides per factorization ($q_{\mathrm{rhs}}=4$ in MIST)\\
 \bottomrule
 \end{tabular}
 \end{table}

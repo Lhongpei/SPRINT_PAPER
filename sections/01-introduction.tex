@@ -9,8 +9,10 @@ bounds on the trajectory cost. Their solutions often lead to near-optimal
 trajectories by extraction or rounding. Relaxations that exploit correlative and
 term sparsity~\cite{waki2006sums,lasserre2006convergent,wang2021tssos,wang2022cstssos}
 keep long horizons representable. SPOT~\cite{kang2025spot} has demonstrated this
-for contact-rich manipulation, and related relaxations are tight on several
-contact-rich problems~\cite{graesdal2024tight}.
+for contact-rich manipulation, related relaxations are tight on several
+contact-rich problems~\cite{graesdal2024tight}, and STROM~\cite{kang2024strom}
+solves sparse second-order relaxations of polynomial trajectory problems to
+certified suboptimality with a first-order (ADMM) SDP solver on the GPU.
 
 Being able to write down such a relaxation does not make it easy to solve.
 A sparse trajectory relaxation contains tens of thousands of small
@@ -27,7 +29,10 @@ General-purpose sparse direct solvers on CPUs (as in MOSEK~\cite{mosek}) or GPUs
 (as in cuDSS~\cite{cudss}) recover part of this structure through fill-reducing
 orderings. They do not know which couplings are temporal, and they cannot
 guarantee that a hierarchy remains compatible after the model-specific
-simplifications that make elimination cheap.
+simplifications that make elimination cheap. First-order GPU methods such as
+STROM's ADMM avoid the Newton system altogether and scale well, but need many
+iterations to reach high accuracy. We keep the second-order IPM and make its
+Newton system cheap instead.
 
 This paper connects the polynomial model to the graph that the linear solver
 actually sees, and uses that connection to build an exact, certified,
@@ -62,7 +67,7 @@ as follows.
   supernodal plan that the GPU executes. We also state what the bounds do not
   cover: symbolic setup, the number of outer IPM iterations, and floating-point
   accuracy.
-\item \textbf{A GPU interior-point solver.} We present SPRINT, an
+\item \textbf{A GPU interior-point solver.} We present MIST, an
   interior-point solver for SOS relaxations of multistage polynomial
   optimization, and describe its structured backend. It combines sparse-coordinate Schur assembly, certified symbolic
   planning, batched native supernodal partial factorization of repeated stage
@@ -72,12 +77,12 @@ as follows.
 \item \textbf{Experiments at matched and strict accuracy.} On SPOT planning
   SDPs, the hierarchical backend is $1.19$--$1.22\times$ faster than full-system
   cuDSS on the same A100 at $N=30$ and $100$, and the reduced solve takes about
-  $1\%$ of Newton time. On PushBox with $N$ up to $80$, SPRINT is
+  $1\%$ of Newton time. On PushBox with $N$ up to $80$, MIST is
   $1.5$--$3.2\times$ faster than MOSEK~11 and BRISK~\cite{brisk} for $N\ge20$.
   For $N\ge5$, it is the only one of the three solvers whose solutions pass a
   strict $10^{-6}$ check on the original SDP. On a three-dimensional pendulum
-  problem with $N=20$, SPRINT on one H100 reaches the same SOS bound as 8-thread
-  MOSEK $12.3\times$ faster in solver time and $7.7\times$ faster end to end.
+  problem with $N=20$, MIST on one H100 converges $12.3\times$ faster than
+  8-thread MOSEK.
 \end{enumerate}
 
 The graph-theoretic and block-elimination identities we use are

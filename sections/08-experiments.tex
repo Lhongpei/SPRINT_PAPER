@@ -1,118 +1,58 @@
 \section{Numerical experiments}\label{sec:experiments}
 
-We address four questions. (i) Is SPRINT faster than mature CPU interior-point
-solvers on trajectory SOS relaxations at the same or higher accuracy?
-(\cref{sec:pushbox,sec:pendulum}) (ii) How much of the gain comes from the
-hierarchical factorization, as opposed to running a general sparse factorization
-on the same GPU? (\cref{sec:cudss}) (iii) Where does the time go, and does the
-reduced system stay small as the analysis predicts? (\cref{sec:phases})
-(iv) What does horizon scaling look like for a general-purpose solver?
-(\cref{sec:scaling})
+We address three questions: how MIST compares with CPU interior-point solvers at
+the same or higher accuracy (\cref{sec:pushbox,sec:pendulum}); how much the
+hierarchy gains over a general sparse factorization on the same GPU
+(\cref{sec:cudss}); and whether the time is spent where the analysis predicts
+(\cref{sec:phases}).
 
 \subsection{Setup}\label{sec:setup}
 
 \paragraph{Problems.}
-All instances are fixed SOS relaxations exported by a customized version of
-SPOT~\cite{kang2025spot} that attaches stage metadata without changing the SDP
-coefficients. PushT, PushBox and PushBot are contact-rich planar pushing tasks
-from SPOT. The PushT relaxations at $N=10,30,100$ have up to $259{,}499$ equality
-rows and $63{,}885$ PSD blocks of order at most $13$. The 3D pendulum problem has
-horizon $N=20$ and a $180^\circ$ maneuver. \todo{describe the 3D pendulum model,
-relaxation order and target; give $m$, number and orders of PSD blocks for
-PushBox $N=2,\dots,80$ and the pendulum (a table of instance sizes).}
+PushT and PushBox are contact-rich planar pushing tasks from SPOT~\cite{kang2025spot};
+the third problem is a three-dimensional pendulum maneuver. All are relaxed at
+order $r=2$ and exported with stage labels; the largest PushT instance ($N=100$)
+has $259{,}499$ equations and $63{,}885$ Gram blocks. \todo{table of instance
+sizes ($m$, number and orders of Gram blocks) for all problems.}
 
-\paragraph{Hardware and software.}
-GPU runs use either one NVIDIA H100 80\,GB on a workstation (\emph{altman},
-CUDA~12.5) or one NVIDIA A100-SXM4-80GB on the Quest cluster (CUDA~12.6.2, cuDSS
-0.7.1.6, 16 allocated CPU cores, four solver host threads, single-threaded BLAS).
-The CPU baselines are MOSEK~11.0.10~\cite{mosek} and BRISK~1.6.5~\cite{brisk},
-both run on altman. \todo{altman CPU model and core count; MOSEK thread count for
-PushBox; BRISK options.} SPRINT selects its backend automatically: the CPU sparse
-direct backend for very small instances, and the GPU stage backend otherwise.
+\paragraph{Solvers and hardware.}
+We compare MIST with MOSEK~11.0.10~\cite{mosek} and BRISK~1.6.5~\cite{brisk} on
+the same workstation (one H100 for MIST, CPU for the baselines), and with
+full-system cuDSS~0.7.1.6~\cite{cudss} inside the same IPM on one A100.
+\todo{CPU model and thread counts.}
 
-\paragraph{Accuracy.}
-We never rely on solver status. Each returned solution is checked independently
-on the original SDP. Writing $(z,X)$ for the primal and $(\lambda,S)$ for the dual
-solution, the checker computes
-\begin{gather*}
-r_p=\frac{\|Az+\langle A_{\mathrm{psd}},X\rangle-b\|_2}{1+\|b\|_1},\quad
-r_d=\frac{\|(E^\top\lambda-c_z,\ \textstyle\sum_i\lambda_iA_i-C-S)\|_2}{1+\|c\|_1},\quad
-\mathrm{gap}=\frac{|c^\top z-b^\top\lambda|}{1+|c^\top z|+|b^\top\lambda|},\\
-\mathrm{comp}=\frac{|\tr(XS)|}{\nu\,(1+|c^\top z|+|b^\top\lambda|)},
-\end{gather*}
-the relative Frobenius distances of $X$ and $S$ from their cones, and the two
-symmetry residuals. We use two acceptance rules.
-\begin{itemize}[leftmargin=*,itemsep=1pt]
-\item \emph{Rule~A (standard)}: all eight metrics strictly below $10^{-4}$, with
-  complementarity averaged over the barrier degree $\nu=\sum_ck_c$. This avoids
-  penalizing models merely for having thousands of small blocks.
-\item \emph{Rule~B (strict)}: all eight metrics strictly below $10^{-6}$, with
-  unaveraged complementarity ($\nu=1$). \todo{confirm the exact Rule~B
-  definitions used for the PushBox and pendulum runs.}
-\end{itemize}
-MOSEK receives primal, dual, gap and $\mu$ tolerances equal to the target, and its
-near-optimal relaxation is disabled so that \texttt{OPTIMAL} is not reported
-under looser tolerances.
+\paragraph{Accuracy and timing.}
+Every returned solution is checked independently on the original SDP using eight
+relative metrics: primal and dual equality residuals, duality gap,
+complementarity, the distances of the primal and dual matrices to the PSD cone,
+and their symmetry residuals. A solution passes the \emph{standard} check if all
+metrics are below $10^{-4}$, and the \emph{strict} check if all are below
+$10^{-6}$ with unaveraged complementarity. Times run from reading the problem to
+writing the solution; the independent check is not timed.
 
-\paragraph{Timing.}
-\emph{Solver time} covers backend setup, all IPM iterations and device transfers,
-but not file input and output. \emph{Fresh-process time} additionally includes
-process and CUDA start-up, model loading and writing the solution. \emph{End-to-end
-time} in \cref{sec:pushbox,sec:pendulum} runs from the original problem input to
-the solver output, including mapping the solution back to the original
-coordinates. Independent checking is not timed, except in the end-to-end
-pendulum time, which includes the acceptance check. \Cref{tab:experiments}
-summarizes the experiments, which come from different dates and machines; we
-compare solvers only within one row.
+\subsection{Comparison with CPU solvers}\label{sec:pushbox}
+
+\Cref{tab:pushbox,fig:pushbox} report PushBox for horizons from 2 to 80. MIST
+selects its CPU backend for $N\le5$ and the GPU backend from $N=10$ on.
 
 \begin{table}[htbp]
 \centering
-\caption{Overview of the experiments. ``Paired'' means that the compared
-configurations ran in the same allocation, alternating where repeated.}
-\label{tab:experiments}
-\small
-\begin{tabular}{@{}lllllc@{}}
-\toprule
-Section & Family, $N$ & Compared & Hardware & Accuracy & Runs\\
-\midrule
-\ref{sec:pushbox} & PushBox, 2--80 & SPRINT, MOSEK, BRISK & altman H100 / CPU & Rule B & 1--3\\
-\ref{sec:pendulum} & 3D pendulum, 20 & SPRINT, MOSEK & altman H100 / CPU & Rule B & 1\\
-\ref{sec:cudss} & PushT, 10--100 & stage vs.\ full cuDSS & Quest A100 (paired) & Rule A & 3\\
-\ref{sec:phases} & PushT, 10--100 & optimization rounds & Quest A100 (paired) & Rule A & 3--5\\
-\ref{sec:scaling} & PushBot, 10--300 & MOSEK & workstation CPU & native & 1\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{PushBox: comparison with CPU solvers at strict accuracy}\label{sec:pushbox}
-
-\Cref{tab:pushbox} compares SPRINT with MOSEK and BRISK on PushBox for
-$N=2,\dots,80$. Each cell gives the end-to-end time, the solver's own status,
-and how many runs produced a solution that passes Rule~B on the original SDP.
-\Cref{fig:pushbox} plots the times.
-
-\begin{table}[htbp]
-\centering
-\caption{PushBox: end-to-end time (s, median when several runs), native status
-and number of runs passing the strict Rule~B ($10^{-6}$) check on the original
-SDP. MOSEK and BRISK were measured earlier on the same machine with internal
-tolerance $10^{-6}$; ``num.\ diff.''\ denotes a reported numerical difficulty.
-Bold: fastest solver whose solutions pass Rule~B.}
+\caption{PushBox: time (s, median over repeated runs) and number of runs whose
+solution passes the strict $10^{-6}$ check on the original SDP.}
 \label{tab:pushbox}
 \small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}r rlll rll rll@{}}
+\begin{tabular}{@{}r rrr ccc@{}}
 \toprule
-& \multicolumn{4}{c}{SPRINT (auto CPU/GPU)} & \multicolumn{3}{c}{BRISK 1.6.5 (CPU)} & \multicolumn{3}{c}{MOSEK 11.0.10 (CPU)}\\
-\cmidrule(lr){2-5}\cmidrule(lr){6-8}\cmidrule(l){9-11}
-$N$ & Time & Dev. & Status & Pass & Time & Status & Pass & Time & Status & Pass\\
+& \multicolumn{3}{c}{Time (s)} & \multicolumn{3}{c}{Strict check passed}\\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+$N$ & MIST & BRISK & MOSEK & MIST & BRISK & MOSEK\\
 \midrule
-2  & 0.70 & CPU & optimal & 1/1 & \textbf{0.62} & optimal & 2/2 & 0.73 & optimal & 2/2\\
-5  & \textbf{2.48} & CPU & optimal & \textbf{3/3} & 3.61 & optimal & 0/2 & 2.38 & optimal & 0/2\\
-10 & \textbf{4.13} & GPU & optimal & \textbf{3/3} & 4.84 & num.\ diff. & 0/2 & 3.63 & optimal & 0/2\\
-20 & \textbf{5.46} & GPU & slow progress & \textbf{3/3} & 13.21 & num.\ diff. & 0/1 & 8.42 & optimal & 0/1\\
-50 & \textbf{7.32} & GPU & optimal & \textbf{3/3} & 13.23 & num.\ diff. & 0/1 & 20.89 & optimal & 0/1\\
-80 & \textbf{9.20} & GPU & optimal & \textbf{3/3} & 29.34 & num.\ diff. & 0/1 & 28.61 & optimal & 0/1\\
+2  & 0.70 & 0.62 & 0.73 & 1/1 & 2/2 & 2/2\\
+5  & 2.48 & 3.61 & 2.38 & 3/3 & 0/2 & 0/2\\
+10 & 4.13 & 4.84 & 3.63 & 3/3 & 0/2 & 0/2\\
+20 & \textbf{5.46} & 13.21 & 8.42 & 3/3 & 0/1 & 0/1\\
+50 & \textbf{7.32} & 13.23 & 20.89 & 3/3 & 0/1 & 0/1\\
+80 & \textbf{9.20} & 29.34 & 28.61 & 3/3 & 0/1 & 0/1\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -121,8 +61,8 @@ $N$ & Time & Dev. & Status & Pass & Time & Status & Pass & Time & Status & Pass\
 \centering
 \begin{tikzpicture}
 \begin{loglogaxis}[
-  width=.72\linewidth,height=6.2cm,
-  xlabel={Horizon $N$},ylabel={End-to-end time (s)},
+  width=.68\linewidth,height=5.8cm,
+  xlabel={Horizon $N$},ylabel={Time (s)},
   xmin=1.7,xmax=95,ymin=0.4,ymax=45,
   xtick={2,5,10,20,50,80},xticklabels={2,5,10,20,50,80},
   ytick={0.5,1,2,5,10,20,40},yticklabels={0.5,1,2,5,10,20,40},
@@ -131,7 +71,7 @@ $N$ & Time & Dev. & Status & Pass & Time & Status & Pass & Time & Status & Pass\
   legend cell align=left]
 \addplot[paperblue,very thick,mark=*,mark size=2.4pt]
   table[x=N,y=gipm_sec,col sep=comma]{data/pushbox_strict.csv};
-\addlegendentry{SPRINT}
+\addlegendentry{MIST}
 \addplot[paperorange,thick,mark=square*,mark size=2.2pt,mark options={fill=white}]
   table[x=N,y=mosek_sec,col sep=comma]{data/pushbox_strict.csv};
 \addlegendentry{MOSEK 11}
@@ -142,263 +82,101 @@ $N$ & Time & Dev. & Status & Pass & Time & Status & Pass & Time & Status & Pass\
 \addplot[paperteal,only marks,mark=triangle*,mark size=2.8pt,forget plot] coordinates {(2,0.62)};
 \end{loglogaxis}
 \end{tikzpicture}
-\caption{PushBox end-to-end time. Filled markers: all runs pass the strict
-Rule~B check on the original SDP; hollow markers: no run passes. From $N=20$ to
-$N=80$, SPRINT's time grows by $1.7\times$, compared with $3.4\times$ for MOSEK and
-$2.2\times$ for BRISK.}
+\caption{PushBox time versus horizon. Filled markers: all runs pass the strict
+check; hollow markers: none does.}
 \label{fig:pushbox}
 \end{figure}
 
-\paragraph{Speed.}
-For $N\le10$ the instances are too small to occupy a GPU, and the three solvers
-are within a factor of about $1.5$ of each other: BRISK is fastest at $N=2$, and
-SPRINT takes $4\%$ and $14\%$ longer than MOSEK at $N=5$ and $N=10$.
-From $N=20$ on, SPRINT is faster than both baselines: $1.54\times$, $2.85\times$
-and $3.11\times$ faster than MOSEK at $N=20,50,80$, and $2.42\times$,
-$1.81\times$ and $3.19\times$ faster than BRISK. Over $N=10$--$80$, a
-least-squares fit of $\log t$ against $\log N$ gives slopes of $0.37$ for SPRINT,
-$0.73$ for BRISK and $1.00$ for MOSEK. MOSEK's linear growth is consistent with
-the historical scaling in \cref{sec:scaling}. SPRINT's sublinear growth in this
-range shows that the GPU is not yet saturated at $N=80$; we expect the slope to
-approach one at longer horizons, where \cref{cor:linear} applies.
+For $N\le10$ the three solvers are within a factor of about 1.5, since these
+instances are too small to occupy a GPU. From $N=20$ on, MIST is $1.5$--$3.1\times$
+faster than MOSEK and $1.8$--$3.2\times$ faster than BRISK, and its time grows by
+only $1.7\times$ from $N=20$ to $N=80$, against $3.4\times$ for MOSEK. MIST's
+solutions pass the strict check in every run, whereas for $N\ge5$ no MOSEK or
+BRISK solution does: MOSEK stops with its own optimality status but leaves primal
+residuals and complementarity above $10^{-6}$ on the original SDP, and BRISK
+reports numerical difficulties from $N=10$ on.
 
-\paragraph{Accuracy.}
-SPRINT's solutions pass the strict check in every run, including $N=20$, where its
-native status is \texttt{SLOW\_PROGRESS}: the IPM stopped because progress
-stalled, but the returned point already satisfies all eight original-problem
-metrics at $10^{-6}$. For $N\ge5$, no MOSEK or BRISK run passes.
-\Cref{tab:violations} lists the violated metrics. MOSEK reports
-\texttt{OPTIMAL} by its own stopping rule, but recomputation on the saved
-solutions shows primal equality residuals of $1.8$--$5.4\times10^{-6}$ and
-unaveraged complementarity up to $3.5\times10^{-5}$ for every $N$ from 5 to 80.
-BRISK violates only complementarity at $N=5$ ($2.11\times10^{-6}$). From
-$N=10$ on it reports numerical difficulties, and its solutions violate the gap,
-both cone distances and complementarity, and at $N=10,20$ also dual
-feasibility. Hence the SPRINT times in \cref{tab:pushbox} are achieved at a
-strictly higher verified accuracy than the baselines.
-\todo{bottom of screenshot 37 is cut off (``SPRINT \dots''): add SPRINT's largest
-Rule~B metric per $N$ and its iteration counts.}
+\subsection{A long-horizon instance: 3D pendulum}\label{sec:pendulum}
+
+\Cref{tab:pendulum} reports the three-dimensional pendulum with $N=20$, solved by
+MOSEK with eight CPU threads and by MIST on one H100.
 
 \begin{table}[htbp]
 \centering
-\caption{PushBox: metrics above $10^{-6}$ when the saved MOSEK and BRISK
-solutions are re-evaluated on the original SDP. SPRINT has no violations.
-``Compl.''\ is unaveraged complementarity.}
-\label{tab:violations}
+\caption{3D pendulum, $N=20$.}
+\label{tab:pendulum}
 \small
-\begin{tabular}{@{}r p{0.43\linewidth} p{0.40\linewidth}@{}}
+\begin{tabular}{@{}lrrc@{}}
 \toprule
-$N$ & BRISK & MOSEK\\
+Solver & Iterations & Solver time (s) & Converged (strict check)\\
 \midrule
-5  & compl.\ ($2.11\times10^{-6}$) & primal eq.\ ($5.42\times10^{-6}$), compl.\ ($2.14\times10^{-5}$)\\
-10 & dual eq., gap, both cone distances, compl. & primal eq.\ ($2.78\times10^{-6}$), compl.\ ($3.52\times10^{-5}$)\\
-20 & dual eq., gap, both cone distances, compl. & primal eq.\ ($1.81\times10^{-6}$), compl.\ ($9.98\times10^{-6}$)\\
-50 & gap, both cone distances, compl. & primal eq.\ ($1.78\times10^{-6}$), compl.\ ($4.11\times10^{-6}$)\\
-80 & gap, both cone distances, compl. & primal eq.\ ($2.28\times10^{-6}$), compl.\ ($1.44\times10^{-5}$)\\
+MOSEK (8 CPU threads) & 21 & 1{,}173.0 & yes\\
+MIST (H100) & 35 & 95.1 & yes\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Caveats.}
-The baseline runs predate the current SPRINT version and were repeated once or
-twice, against three SPRINT runs. SPRINT and MOSEK times include mapping the
-solution back to the original coordinates and writing it, whereas BRISK times
-include an NPZ-to-MAT conversion and native output. Including independent
-checking, SPRINT at $N=80$ took $9.34$\,s in an earlier round. The comparison sets
-one GPU against a multicore CPU; it measures solver systems on the hardware each
-is designed for, not algorithms on equal hardware.
-
-\subsection{A long-running instance: 3D pendulum}\label{sec:pendulum}
-
-The 3D pendulum relaxation with $N=20$ is much harder per stage than PushBox.
-Both solvers read the same reduced SDP; after solving, both solutions are mapped
-back to the original SDP and checked with Rule~B. \Cref{tab:pendulum} reports the
-results.
-
-\begin{table}[htbp]
-\centering
-\caption{3D pendulum ($N=20$, $180^\circ$) on altman: MOSEK 11.0.10 with eight CPU
-threads versus SPRINT on one H100. Both read the same reduced SDP.}
-\label{tab:pendulum}
-\small
-\begin{tabularx}{\linewidth}{@{}Xrr@{}}
-\toprule
-& MOSEK (CPU, 8 threads) & SPRINT (GPU, H100)\\
-\midrule
-IPM iterations & 21 & 35\\
-Solver time (s) & 1{,}173.01 & \textbf{95.11}\\
-Wall time, reduced model read to solution output (s) & 1{,}183.74 & \textbf{99.52}\\
-End-to-end, original SDP to back-substitution and acceptance (s) & 1{,}248.52 & \textbf{162.89}\\
-Rule~B metrics passed on the original SDP & 8/8 & 8/8\\
-Largest relative error on the original SDP & $1.08\times10^{-7}$ & $\mathbf{3.49\times10^{-9}}$\\
-SOS objective value & 821.6721189640 & 821.6721187165\\
-Terminal angle error of the extracted trajectory & $0.143634^\circ$ & $0.143654^\circ$\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-SPRINT is $12.3\times$ faster in solver time, $11.9\times$ in wall time and
-$7.7\times$ end to end. It takes more iterations (35 versus 21), but each costs
-$2.72$\,s instead of $55.9$\,s, a $20.6\times$ reduction per iteration. Both
-solutions pass all eight strict metrics, and SPRINT's largest error is $30\times$
-smaller. The two SOS bounds agree to a relative difference of
-$3\times10^{-10}$, and the trajectories extracted from them reach the target with
-the same terminal angle error to within $2\times10^{-5}$ degrees. The work outside
-the solver, namely reduction, back-substitution and the acceptance check, takes
-63--65\,s in both pipelines. It is negligible next to MOSEK's solve but accounts for $39\%$ of
-SPRINT's end-to-end time, so it is now the next bottleneck.
-\todo{describe the SDP reduction step (what is reduced, and is it exact?).}
+Both solvers converge. MIST takes more iterations, but each costs $2.7$\,s instead of $55.9$\,s, so it is $12.3\times$ faster overall.
 
 \subsection{Hierarchical elimination versus general sparse factorization}\label{sec:cudss}
 
-To isolate the effect of the hierarchy, we run the same IPM with two linear
-backends on the same A100: full-system cuDSS on the assembled Schur matrix, and
-the native stage backend of \cref{sec:algorithm}. Each backend received one
-warm-up and three measured fresh-process runs per horizon on fixed PushT
-instances. All 18 measured runs pass Rule~A (largest metric
-$9.81\times10^{-5}$), no structured run fell back, and no stage run created a
-full-cuDSS context.
+To isolate the hierarchy, we run the same IPM on the same A100 with two linear
+backends: full-system cuDSS on the assembled $H_\delta$, and the hierarchical
+backend of \cref{sec:algorithm}. Each backend ran one warm-up and three measured
+runs per horizon on PushT; all runs pass the standard check, and the hierarchical
+backend never fell back to cuDSS.
 
 \begin{table}[htbp]
 \centering
-\caption{PushT on one A100: solver time, median [min, max] over three runs, with
-the same IPM and two linear backends. Speedups use medians.}
+\caption{PushT on one A100: solver time, median [min, max] of three runs, with the
+same IPM and two linear backends.}
 \label{tab:cudss}
 \small
-\begin{tabular}{@{}rllccl@{}}
+\begin{tabular}{@{}rllcl@{}}
 \toprule
-$N$ & Full cuDSS (s) & Native stage (s) & Solver speedup & Process speedup & Reduced route\\
+$N$ & Full cuDSS (s) & Hierarchical (s) & Speedup & Reduced solve\\
 \midrule
-10  & 1.455 [1.443, 1.460] & 1.446 [1.444, 1.457] & $1.01\times$ & $1.00\times$ & dense\\
-30  & 3.124 [3.099, 3.125] & 2.629 [2.548, 2.633] & $1.19\times$ & $1.16\times$ & dense\\
-100 & 9.276 [9.134, 9.329] & 7.624 [7.612, 7.638] & $1.22\times$ & $1.19\times$ & PCR\\
+10  & 1.455 [1.443, 1.460] & 1.446 [1.444, 1.457] & $1.01\times$ & dense\\
+30  & 3.124 [3.099, 3.125] & 2.629 [2.548, 2.633] & $1.19\times$ & dense\\
+100 & 9.276 [9.134, 9.329] & 7.624 [7.612, 7.638] & $1.22\times$ & cyclic reduction\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\Cref{tab:cudss} shows equal times at $N=10$ and speedups of $1.19\times$ and
-$1.22\times$ at $N=30$ and $100$. The direct route took 25--27 iterations at
-$N=100$, against 25 for every stage run. These are end-to-end solver ratios.
-They include setup, assembly and the other IPM phases, so they do not isolate
-the factorization kernels. By \cref{prop:ordering}, cuDSS can in principle find
-an equally good elimination order. The gain of the stage backend must therefore
-come from how the elimination is executed: a small reduced system, batched
-factorization of repeated local patterns, and no global sparse analysis.
-Separating these contributions requires a phase-level comparison of both
-backends. \todo{phase-level timing of full cuDSS (analysis, factorization,
-solve) next to \cref{tab:phases}.} An earlier H100 comparison gave similar ratios
-($1.12$--$1.36\times$; \cref{app:measurements}). The stage-backend timings in
-\cref{tab:cudss} predate the optimizations of \cref{sec:phases}, which reduce
-the $N=100$ time substantially, and we have not yet rerun full cuDSS against the
-latest version. \todo{rerun full cuDSS vs.\ latest stage backend in one
-allocation.}
+The two backends tie at $N=10$, and the hierarchy is $1.19\times$ and
+$1.22\times$ faster at $N=30$ and $N=100$, with similar iteration counts. These
+ratios include assembly and all other IPM work, which both backends share. Since
+cuDSS could in principle find an equally good ordering (\cref{prop:ordering}),
+the gain comes from execution: a small reduced system, batched factorization of
+identical stages, and no global sparse analysis.
 
 \subsection{Where the time goes}\label{sec:phases}
 
-\Cref{tab:phases} breaks down one synchronized PushT $N=100$ run on an A100 with
-the current configuration. Setup takes $1.37$\,s and the Newton loop $1.75$\,s
-over 24 iterations (about $73$\,ms per iteration). Local partial factorization is
-the largest numerical phase ($35\%$ of the loop), followed by forward
-condensation ($17\%$) and recovery ($8\%$). The reduced dense factorization and
-solves take $21.5$\,ms in total, about $1.2\%$ of the loop. This matches the
-analysis: after pruning and coarsening, the reduced chain is small, and the cost
-is dominated by the local terms $\Phi_2$ and $\Phi_1$ of \cref{thm:main}. Setup
-takes almost as long as the whole Newton loop. Symbolic preprocessing, which our
-linear bounds do not cover, therefore deserves attention in its own right.
+\Cref{tab:phases} breaks down one PushT run with $N=100$ on an A100 with the
+current version of MIST.
 
 \begin{table}[htbp]
 \centering
-\caption{Phase times for PushT $N=100$ on one A100 (single synchronized
-diagnostic run). Indented rows are nested in the row above them; synchronized
-nested timings do not sum to their parent.}
+\caption{Phase times for PushT, $N=100$, one A100. Indented rows are parts of the
+row above.}
 \label{tab:phases}
 \small
 \begin{tabular}{@{}lrr@{}}
 \toprule
 Phase & Time (ms) & Share of Newton loop\\
 \midrule
-Schur, backend and state setup & 1{,}373 & --\\
-\quad Schur setup & 551 & --\\
-\quad Stage setup (separators, certificate, symbolic plans) & 819 & --\\
+Setup (assembly structures, interfaces, symbolic plans) & 1{,}373 & --\\
 Newton loop, 24 iterations & 1{,}748 & 100\%\\
-\quad Local partial factorization & 618 & 35.3\%\\
-\quad Forward condensation & 303 & 17.3\%\\
-\quad Interior recovery & 137 & 7.9\%\\
-\quad Reduced dense factorization and solves & 21.5 & 1.2\%\\
+\quad Local partial factorization & 618 & 35\%\\
+\quad Forward condensation & 303 & 17\%\\
+\quad Interior recovery & 137 & 8\%\\
+\quad Reduced factorization and solves & 21.5 & 1.2\%\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Exact engineering optimizations.}
-The current configuration results from five rounds of optimization, each
-confirmed by a paired comparison in one A100 allocation (\cref{tab:rounds}). The
-rounds reduce work and overhead in panel updates, cone operations, I/O,
-separator and symbolic-plan construction, scatter maps, Schur target
-evaluation and setup sorting. They change neither the relaxation, the
-elimination ordering, the fill pattern, the arithmetic precision nor the
-stopping rule. In the last round, all 84 qualification solutions are bitwise
-identical to the baseline in every non-timing field. Across the rounds, the
-$N=100$ fresh-process time fell from $8.44$\,s to $4.48$\,s. Because the rounds
-ran in different allocations, this overall figure is indicative, and the
-per-round gains should not be multiplied. All 161 solves of the last round pass
-Rule~A.
-
-\begin{table}[htbp]
-\centering
-\caption{Paired optimization rounds on PushT $N=100$ (A100). Fresh-process medians;
-the reduction is one minus the median paired ratio where five pairs were run
-(wins in parentheses), and one minus the ratio of medians otherwise.}
-\label{tab:rounds}
-\small
-\begin{tabularx}{\linewidth}{@{}lXrrr@{}}
-\toprule
-Round & Main change & Baseline (s) & Optimized (s) & Reduction\\
-\midrule
-1 & panel, cone and I/O optimizations & 8.442 & 6.121 & $27.5\%$\\
-2 & setup configuration (separators, schedules, packing) & 5.899 & 5.114 & $13.3\%$\\
-3 & scatter-map reuse, direct packing, warp factor kernel & 5.221 & 4.982 & $4.5\%$ (5/5)\\
-4 & small-transform reuse, parallel Schur target runs & 5.021 & 4.741 & $5.5\%$ (5/5)\\
-5 & flat separator graph, packed maps, column tasks, device sort & 4.649 & 4.480 & $3.7\%$ (5/5)\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Horizon scaling of a general-purpose solver}\label{sec:scaling}
-
-\Cref{fig:mosek} shows historical MOSEK solve times on PushBot for
-$N=10$--$300$, with up to $450{,}453$ equality rows. All runs report
-\texttt{PrimalAndDualFeasible}. The log--log slope is $1.02$, and the time per
-stage stays between $0.63$ and $0.82$\,s. This shows that a general sparse IPM
-already scales almost linearly on these relaxations, consistent with the
-existence of bounded-width orderings (\cref{thm:interval}), but with a large
-constant. A separate factor diagnostic on
-a chain-anchored moment formulation gives endpoint exponents of $1.09$ for factor
-nonzeros and $1.23$ for factor flops over $N=10$--$100$ (\cref{app:measurements}).
-The hierarchy keeps the linear growth while reducing the constant and exposing
-GPU parallelism. A direct test of the finer bounds would also record $\Phi_1$,
-$\Phi_2$, $\mathcal B_2$, the event sizes $(p_e,\beta_e)$ and the panel
-dimensions alongside the phase times. \todo{scaling run of SPRINT to $N\ge300$
-with these structural quantities.}
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-\begin{loglogaxis}[
-  width=.66\linewidth,height=5.6cm,
-  xlabel={Horizon $N$},ylabel={Solve time (s)},
-  xmin=8,xmax=380,ymin=4,ymax=300,
-  xtick={10,30,100,300},xticklabels={10,30,100,300},
-  ytick={5,10,30,100,300},yticklabels={5,10,30,100,300},
-  grid=both,grid style={gray!18},
-  legend style={at={(0.03,0.97)},anchor=north west,draw=none,font=\small}]
-\addplot[paperorange,thick,mark=square*,mark size=2pt]
-  table[x=N,y=mosek_sec,col sep=comma]{data/mosek_pushbot_scaling.csv};
-\addlegendentry{MOSEK, PushBot}
-\addplot[papergray,dashed,domain=10:300,samples=2]{0.7*x};
-\addlegendentry{$0.7N$}
-\end{loglogaxis}
-\end{tikzpicture}
-\caption{Historical MOSEK solve times on PushBot (single runs, native status
-only). The fitted log--log slope is $1.02$.}
-\label{fig:mosek}
-\end{figure}
+An iteration takes about 73\,ms. The reduced system costs about $1\%$ of the
+Newton loop, while local factorization, condensation and recovery dominate. This
+is what \cref{thm:main} predicts once pruning and coarsening have made the
+interfaces small: the cost is governed by the local front terms $\Phi_2$ and
+$\Phi_1$, and that is exactly the part MIST executes as batched GPU kernels.

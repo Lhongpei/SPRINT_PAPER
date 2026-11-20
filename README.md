@@ -1,14 +1,16 @@
-# SPRINT paper
+# MIST paper
 
-Draft of **SPRINT: A GPU Interior-Point Method for Sum-of-Squares Relaxations of
-Robot Trajectory Optimization**.
+(Repository name SPRINT_PAPER is historical; the solver was renamed MIST.)
 
-SPRINT is an interior-point solver for SOS relaxations of multistage polynomial
+Draft of **MIST: A GPU Multistage Interior-Point Method for Sum-of-Squares
+Relaxations of Robot Trajectory Optimization**.
+
+MIST is an interior-point solver for SOS relaxations of multistage polynomial
 optimization. This paper focuses on robot trajectory problems.
 
 | Path | Contents |
 |---|---|
-| `SPRINT_draft.pdf` | compiled draft; red `[TODO: ...]` markers are open items |
+| `MIST_draft.pdf` | compiled draft; red `[TODO: ...]` markers are open items |
 | `main.tex` | main file; replace `\drafttrue` with `\draftfalse` to hide TODO markers |
 | `sections/` | one file per section, appendices A–C |
 | `references.bib` | bibliography (entered from memory: verify DOIs and pages before submission) |
@@ -38,7 +40,7 @@ or `latexmk main`.
 3. Instance sizes (m, number and orders of PSD blocks) for PushBox N=2..80 and the 3D
    pendulum; pendulum model description (meaning of "180°", relaxation order).
 4. Confirm the strict Rule B (1e-6) metric definitions, in particular unaveraged complementarity.
-5. PushBox: SPRINT's largest Rule B metric and iteration counts per N
+5. PushBox: MIST's largest Rule B metric and iteration counts per N
    (the source summary was cut off).
 6. What the SDP reduction step in the pendulum pipeline does, and whether it is exact.
 7. Hardware details (altman CPU model and cores), MOSEK threads for PushBox, BRISK options.

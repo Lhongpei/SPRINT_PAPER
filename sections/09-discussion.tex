@@ -17,11 +17,11 @@ operator and a fallback exists.
 
 \paragraph{What the experiments show.}
 The strongest results are the comparisons with MOSEK and BRISK
-(\cref{sec:pushbox,sec:pendulum}), where SPRINT is faster from moderate horizons
+(\cref{sec:pushbox,sec:pendulum}), where MIST is faster from moderate horizons
 on and, on PushBox, is the only solver that meets a strict $10^{-6}$ check on the
 original SDP. They compare complete solver systems on different hardware (one
 GPU versus a multicore CPU), and the baselines were measured earlier than the
-current SPRINT version. The paired comparison with cuDSS (\cref{sec:cudss}) holds
+current MIST version. The paired comparison with cuDSS (\cref{sec:cudss}) holds
 the hardware and the IPM fixed. It shows a consistent but modest gain from the
 hierarchy itself, which agrees with \cref{prop:ordering}: a general sparse
 factorization can find comparable orderings, and the remaining advantage lies in

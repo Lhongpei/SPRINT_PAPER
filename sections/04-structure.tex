@@ -1,108 +1,123 @@
 \section{Temporal structure of the SOS Newton system}\label{sec:structure}
 
+\paragraph{Overview of the method.}
+MIST factors $H_\delta$ in four steps, each justified by one result.
+(i) The sparsity of $H_\delta$ is contained in a graph read directly off the
+coefficient-matching equations (\cref{lem:envelope}).
+(ii) Cutting the horizon between two stages separates this graph by a set of
+equations whose size depends only on the variables shared across the cut
+(\cref{thm:monomial}); with bounded temporal support this already gives an
+ordering with linear work (\cref{thm:interval}).
+(iii) MIST keeps a sequence of such interfaces, eliminates everything between
+them independently, and obtains an exact block-tridiagonal system on the
+interfaces plus a small border; a linear-time certificate guarantees this
+structure for the interfaces actually chosen (\cref{thm:chain}).
+(iv) The reduced system is solved by dense Cholesky or block cyclic reduction,
+and the cost of the whole scheme is bounded by the local elimination fronts and
+interface widths (\cref{thm:main}). This section covers steps (i) and (ii),
+\cref{sec:hierarchy} step (iii), and \cref{sec:complexity} step (iv).
+
 \subsection{The resource graph}
 
-For each PSD block $c$ and free variable $a$, define the row supports
+For each Gram block $c$ and free variable $a$, define the equations they touch:
 \begin{equation}\label{eq:support}
 \mathcal R_c=\{i:A_i^{(c)}\ne0\},\qquad \mathcal R_a=\{i:E_{ia}\ne0\}.
 \end{equation}
-We call a PSD block or a free variable a \emph{resource}.
+We call a Gram block or a free variable a \emph{resource}.
 
 \begin{definition}[resource graph]\label{def:resource}
-The resource graph $G=(V,\mathcal E)$ has one vertex per equality row. Each
-resource support $\mathcal R_c$ or $\mathcal R_a$ induces a clique in~$G$.
+The resource graph $\mathcal G=(V,\mathcal E)$ has one vertex per equation, and
+each resource support $\mathcal R_c$ or $\mathcal R_a$ induces a clique.
 \end{definition}
 
 \begin{lemma}[structural envelope]\label{lem:envelope}
-The off-diagonal sparsity pattern of $H_\delta$ is contained in $G$. For any
-elimination order, the numerical fill of $H_\delta$ is contained in the symbolic
-fill of $G$ for the same order.
+The off-diagonal sparsity pattern of $H_\delta$ is contained in $\mathcal G$. For
+any elimination order, the fill of $H_\delta$ is contained in the symbolic fill of
+$\mathcal G$ for the same order.
 \end{lemma}
 
 \begin{proof}
-If rows $i$ and $j$ share no PSD block, every term in~\eqref{eq:schur} contains
-a zero coefficient matrix. The sparse free-variable term couples two rows only
-if they share a free variable, and the diagonal shift creates no off-diagonal
-entries. During elimination, a pivot updates only pairs of its later neighbors,
-so induction over the elimination order proves the fill statement.
+If equations $i$ and $j$ share no Gram block, every term in~\eqref{eq:schur}
+vanishes. The term $\eta^2EE^\top$ in~\eqref{eq:operator} couples $i$ and $j$ only
+if they share a free variable, and the shift adds nothing off the diagonal. A
+pivot updates only pairs of its later neighbors, so induction over the elimination
+order gives the fill statement.
 \end{proof}
 
-Sharing a resource makes coupling possible but does not force a nonzero
-entry. Conversely, two rows using disjoint coordinates of the same PSD block are
-generally coupled, because $W_c$ is dense. The analysis uses the conservative
-envelope and never relies on numerical cancellation.
+The rank-one term $uu^\top$ is deliberately excluded: it would make $\mathcal G$
+complete. Sharing a resource allows a nonzero entry without forcing one, and two
+equations using disjoint coordinates of the same Gram block are generally coupled
+because $W_c$ is dense. The analysis therefore uses the conservative envelope and
+never relies on cancellation.
 
 \subsection{A monomial separator bound}
 
 \begin{assumption}[local coefficient representation]\label{ass:local}
-Each coefficient-matching row is identified by a unique monomial $x^\alpha$ with
-$|\alpha|\le2r$. Each resource is assigned to one stage, and every monomial in
-its row support uses only variables local to that resource. Rows outside this
-representation are placed in the border set $B$. No dense row transformation is
-applied that destroys this support structure.
+Each equation is identified by a unique monomial $\xi^\alpha$ with
+$|\alpha|\le2r$. Each resource is assigned to one stage, and every monomial in its
+support uses only variables of that resource. Equations outside this
+representation are placed in a border set $B$.
 \end{assumption}
 
-At a temporal cut $t$, split the resources into left and right sets
-$\mathcal U_L(t)$ and $\mathcal U_R(t)$. Let $V_L(t)$ and $V_R(t)$ be the unions
-of their polynomial variables, and define
+At a temporal cut $t$, split the resources into those assigned to stages up to
+$t$ and those after $t$. Let $V_L(t)$ and $V_R(t)$ be the variables used by the two
+groups, and let
 \begin{equation}\label{eq:shared}
 S_t=V_L(t)\cap V_R(t),\qquad s_t=|S_t|.
 \end{equation}
-Let $Q_t$ be the rows outside $B$ that are incident to resources on both sides.
+Let $\mathcal Q_t$ be the equations outside $B$ that touch resources on both sides.
 
 \begin{theorem}[monomial interface bound]\label{thm:monomial}
-Under \cref{ass:local}, $Q_t$ separates the left-exclusive rows from the
-right-exclusive rows in $G[V\setminus B]$, and
+Under \cref{ass:local}, removing $\mathcal Q_t$ disconnects the equations used only
+on the left from those used only on the right in $\mathcal G[V\setminus B]$, and
 \begin{equation}\label{eq:monomial}
-|Q_t|\le\binom{s_t+2r}{2r}.
+|\mathcal Q_t|\le\binom{s_t+2r}{2r}.
 \end{equation}
-If the constant row exists and belongs to $B$, the bound decreases by one.
 \end{theorem}
 
 \begin{proof}
-A row in $Q_t$ corresponds to a monomial that occurs in a resource on each side
-of the cut. Its variables therefore lie in $V_L(t)\cap V_R(t)=S_t$. There are
-exactly $\binom{s_t+2r}{2r}$ monomials of degree at most $2r$ in $s_t$
-variables, and unique row identification prevents double counting. After
-deleting $Q_t$, every remaining row is exclusive to one side. If a left-exclusive
-row and a right-exclusive row were adjacent, they would share a resource; that
-resource lies on one side only, which contradicts the exclusivity of one of the
-rows.
+An equation in $\mathcal Q_t$ is a monomial occurring in a resource on each side,
+so its variables lie in $V_L(t)\cap V_R(t)=S_t$. There are exactly
+$\binom{s_t+2r}{2r}$ monomials of degree at most $2r$ in $s_t$ variables, and each
+equation is a distinct monomial. Any remaining equation touches resources on one
+side only. An edge between a left-only and a right-only equation would mean a
+shared resource, which lies on one side and contradicts the other equation being
+exclusive to the opposite side.
 \end{proof}
 
-The bound depends on the shared variables, not on the size of a stage. A stage
-with $D$ variables can carry up to $\binom{D+2r}{2r}$ coefficient monomials,
-while the interface it creates is controlled by $\binom{s_t+2r}{2r}$; term
-sparsity can reduce both counts further. For example, $s_t=6$ and $r=2$ give the
-conservative bound $210$. Applying such a value to a model requires checking the
-complete variable unions of the resources on both sides, not only the dimension
-of the state vector.
+The bound depends on the variables shared across the cut, not on the size of a
+stage: a stage with $n_{\mathrm{var}}$ variables can carry up to
+$\binom{n_{\mathrm{var}}+2r}{2r}$ equations, but the interface it creates is
+controlled by $\binom{s_t+2r}{2r}$, and term sparsity typically keeps fewer
+monomials still. In PushT (\cref{sec:experiments}), consecutive stages share only
+the planar pose $(\cos\theta,\sin\theta,s_x,s_y)$, so $s_t=4$ and $r=2$ give at
+most $\binom{8}{4}=70$ interface equations per cut, although each stage uses 22
+variables. The interfaces MIST retains at $N=100$ after pruning and coarsening
+have 37 equations on average.
 
 \subsection{Bounded temporal support and an explicit linear-work ordering}
 
-For a row $i\notin B$, let $\mathcal T_i$ be the set of stages of its incident
-resources, and define its occurrence interval
+For an equation $i\notin B$, let $\mathcal T_i$ be the stages of the resources it
+touches, and define its occurrence interval
 \begin{equation}\label{eq:interval}
 J_i=[a_i,b_i],\qquad a_i=\min\mathcal T_i,\quad b_i=\max\mathcal T_i.
 \end{equation}
 
 \begin{assumption}[bounded temporal support]\label{ass:support}
-There are bounds $\ell,q,g$, independent of $N$, such that $|B|=g$, every row
-$i\notin B$ satisfies $b_i-a_i+1\le\ell$, and at most $q$ rows first appear at
-any one stage.
+There are constants $\ell,q,g$, independent of $N$, such that $|B|=g$, every
+equation $i\notin B$ satisfies $b_i-a_i+1\le\ell$, and at most $q$ equations first
+appear at any one stage.
 \end{assumption}
 
-Under \cref{ass:local}, a stage that uses at most $D$ variables gives
-$q\le\binom{D+2r}{2r}$. If every non-global variable is used only within a
-stage window of length $\ell$, every monomial containing such a variable has
-span at most $\ell$. Monomials in global variables only, including the constant
-monomial, must be placed in $B$, so a bounded number of them is part of the
-assumption.
+For~\eqref{eq:pop}, a variable used by stages $t$ and $t+1$ only produces
+monomials of span at most two, and a stage with $n_{\mathrm{var}}$ variables gives
+$q\le\binom{n_{\mathrm{var}}+2r}{2r}$. Monomials in global variables alone, such
+as the constant monomial, go to $B$.
 
 \begin{theorem}[interval path decomposition]\label{thm:interval}
-Under \cref{ass:support}, $G$ has a path decomposition of width at most
-$\ell q+g-1$. Eliminating the rows outside $B$ in nondecreasing order of $b_i$,
-followed by $B$, costs
+Under \cref{ass:support}, $\mathcal G$ has a path decomposition of width at most
+$\ell q+g-1$. Eliminating the equations outside $B$ in nondecreasing order of
+$b_i$, followed by $B$, costs
 \begin{equation}\label{eq:interval-cost}
 W_{\mathrm{chol}}=O\bigl(Nq(\ell q+g)^2+g^3\bigr),\qquad
 M_{\mathrm{chol}}=O\bigl(Nq(\ell q+g)+g^2\bigr).
@@ -110,35 +125,34 @@ M_{\mathrm{chol}}=O\bigl(Nq(\ell q+g)+g^2\bigr).
 \end{theorem}
 
 \begin{proof}
-For each stage $t$, form the bag $X_t=B\cup\{i:t\in J_i\}$. Every vertex lies in
-a bag. Two non-border rows that share a resource both lie in the bag of that
-resource's stage, and border vertices lie in every bag, so all edges are
-covered. The bags containing a non-border row form its interval $J_i$, which
-gives the running-intersection property. If $t\in J_i$, then $a_i$ is one of the
-$\ell$ stages ending at $t$, so $|X_t|\le\ell q+g$.
+For each stage $t$, form the bag $X_t=B\cup\{i:t\in J_i\}$. Two non-border
+equations sharing a resource lie together in the bag of that resource's stage, and
+border equations lie in every bag, so all edges are covered. The bags containing a
+non-border equation form its interval $J_i$, which gives the running-intersection
+property. If $t\in J_i$, then $a_i$ is one of the $\ell$ stages ending at $t$, so
+$|X_t|\le\ell q+g$.
 
-For the explicit order, consider the supergraph in which two non-border rows are
-adjacent whenever their intervals intersect, and every border vertex is adjacent
-to all vertices. When the remaining interval with the smallest right endpoint
-$b_i$ is eliminated, every remaining neighboring interval contains $b_i$, so
-these neighbors and $B$ already form a clique. The order therefore creates no
-fill in the supergraph, and the symbolic fill of its subgraph $G$ stays within
-the same envelope. Each of the at most $Nq$ non-border pivots has front size at
-most $\ell q+g$, costing $O((\ell q+g)^2)$ work and $O(\ell q+g)$ storage;
-the final border costs $O(g^3)$ work and $O(g^2)$ storage.
+For the ordering, consider the supergraph in which two non-border equations are
+adjacent whenever their intervals intersect and border equations are adjacent to
+everything. When the remaining equation with the smallest right endpoint $b_i$ is
+eliminated, all of its remaining neighbors contain $b_i$ in their intervals, so
+they already form a clique with $B$. The order creates no fill in the supergraph,
+hence the fill of $\mathcal G$ stays inside it. Each of the at most $Nq$
+non-border pivots has a front of size at most $\ell q+g$, costing
+$O((\ell q+g)^2)$ work and $O(\ell q+g)$ storage; the border costs $O(g^3)$ and
+$O(g^2)$.
 \end{proof}
 
-The link between graph width and factorization cost is standard; the point here
-is that the intervals come directly from SOS resource incidence, in line with the
-observation of~\citet{zhang2024chordal} that constraint incidence, not only the
-aggregate sparsity graph, controls Newton-system cost. \Cref{thm:interval}
-guarantees its explicit order, not the width found by a generic AMD or
-nested-dissection ordering. Its bag-based bound is also conservative when most
-rows of a stage belong to small, independent substructures.
+\Cref{thm:interval} is the multistage analogue of the classical link between
+treewidth and factorization cost, with the decomposition read off the SOS model;
+as noted by \citet{zhang2024chordal}, it is the incidence of constraints on
+blocks, not the aggregate sparsity of the Gram matrices, that controls the
+Newton-system cost. The theorem guarantees its own explicit order, not the result
+of a generic AMD or nested-dissection ordering. It is also pessimistic: it charges
+every pivot the largest bag, even though most equations of a stage belong to small
+substructures. The hierarchy of the next section removes this pessimism.
 
-Separators at different cuts need not be disjoint: a monomial can persist across
-several cuts, and minimum separators chosen independently at each cut need not
-produce a block-tridiagonal reduced system. Duplicating rows to force
-disjointness would change the formulation. The next section therefore states
-the compatibility requirement explicitly and certifies it on the retained sets
-that the solver actually uses.
+Separators at different cuts need not be disjoint, since a monomial can persist
+across several cuts, and separators chosen independently at each cut need not
+produce a block-tridiagonal reduced system. The next section therefore makes
+compatibility an explicit, checkable condition on the interfaces the solver uses.

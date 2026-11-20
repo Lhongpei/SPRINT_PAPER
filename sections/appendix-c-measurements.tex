@@ -36,7 +36,7 @@ retained dimension from $1566$ to $113$.
 
 \paragraph{Earlier PushBox comparison with MOSEK.}
 \Cref{tab:pushbox-old} reproduces an earlier PushBox comparison, reported as accepted under Rule~A, in
-which SPRINT used structured assembly with full cuDSS rather than the stage
+which MIST used structured assembly with full cuDSS rather than the stage
 backend. \Cref{tab:pushbox} supersedes it.
 
 \begin{table}[htbp]
@@ -46,7 +46,7 @@ backend. \Cref{tab:pushbox} supersedes it.
 \small
 \begin{tabular}{@{}rrrr@{}}
 \toprule
-$N$ & SPRINT (s) & MOSEK (s) & Speedup\\
+$N$ & MIST (s) & MOSEK (s) & Speedup\\
 \midrule
 5 & 1.698 & 1.460 & $0.86\times$\\
 10 & 2.000 & 2.407 & $1.20\times$\\
@@ -58,12 +58,12 @@ $N$ & SPRINT (s) & MOSEK (s) & Speedup\\
 \end{table}
 
 \paragraph{CPU reference runs.}
-\Cref{tab:quest-cpu} lists single CPU runs of SPRINT's sparse direct backend on the
+\Cref{tab:quest-cpu} lists single CPU runs of MIST's sparse direct backend on the
 PushT instances, used to validate the exported problems and the solution path.
 
 \begin{table}[htbp]
 \centering
-\caption{SPRINT CPU reference runs on PushT (Quest, single runs, Rule~A).}
+\caption{MIST CPU reference runs on PushT (Quest, single runs, Rule~A).}
 \label{tab:quest-cpu}
 \small
 \begin{tabular}{@{}rrrrr@{}}

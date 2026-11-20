@@ -12,6 +12,23 @@ give the trajectory setting that motivates this work. These papers reduce the
 size of the relaxation. We take a fixed sparse relaxation as given and study the
 cost of solving its IPM Newton systems.
 
+\paragraph{Certifiable trajectory optimization solvers.}
+STROM~\cite{kang2024strom} builds sparse second-order Lasserre relaxations of
+polynomial trajectory problems and solves them with cuADMM, a symmetric
+Gauss--Seidel ADMM implemented in CUDA, reporting certified suboptimality below
+1\% on its benchmarks. TinySDP~\cite{mahajan2026tinysdp} combines PSD-cone
+projections with a cached-Riccati ADMM for real-time model predictive control
+with nonconvex obstacle constraints on microcontrollers. Both are first-order
+methods: each iteration is cheap and parallel, but high accuracy takes many
+iterations. MIST is complementary. It keeps the second-order interior-point
+method, which reaches high accuracy in a few tens of iterations
+(\cref{sec:pushbox}), and makes each Newton step cheap through exact temporal
+elimination. On the local side, interior-point solvers for the nonlinear
+trajectory problem itself, such as CALIPSO~\cite{howell2022calipso} for conic
+and complementarity constraints and Hippo~\cite{zhao2026hippo}, can serve as
+the refinement step that turns an extracted relaxation solution into a feasible
+trajectory.
+
 \paragraph{Chordal structure and the complexity of sparse SDPs.}
 Chordal conversion and matrix completion~\cite{fukuda2001exploiting,nakata2003exploiting,kim2011exploiting,vandenberghe2015chordal}
 split large PSD constraints into overlapping small ones, and
@@ -55,7 +72,10 @@ Primal--dual IPMs for SDP~\cite{helmberg1996interior,nesterov1997self,todd1998ne
 with Mehrotra-type predictor--corrector steps~\cite{mehrotra1992implementation}
 and homogeneous self-dual embeddings~\cite{ye1994homogeneous}, underlie
 SeDuMi~\cite{sturm1999sedumi}, SDPT3~\cite{toh1999sdpt3} and
-MOSEK~\cite{mosek}. Parallel and GPU implementations have targeted the dense
+MOSEK~\cite{mosek}. \citet{papp2019sos} optimize directly over the SOS cone
+with a nonsymmetric IPM in an interpolant basis, avoiding the SDP reformulation,
+and \citet{leijenhorst2024clustered} develop a high-precision primal--dual IPM
+for clustered low-rank SDPs arising from polynomial optimization. Parallel and GPU implementations have targeted the dense
 Schur complement of general SDPs~\cite{fujisawa2012sdpara}. Low-rank and
 first-order methods~\cite{burer2003nonlinear} scale to larger problems but
 typically reach lower accuracy, and BRISK~\cite{brisk} is the second CPU

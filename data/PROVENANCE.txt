@@ -1,5 +1,5 @@
-Data used by the SPRINT paper draft. Values are transcribed, not re-measured.
-SPRINT is developed in the GIPM repository; source paths below refer to it.
+Data used by the MIST paper draft. Values are transcribed, not re-measured.
+MIST is developed in the GIPM repository; source paths below refer to it.
 
 pushbox_strict.csv, pushbox_strict_violations.csv
   Source: results summary screenshot 37.PNG (GIPM repository root), November 2026.
